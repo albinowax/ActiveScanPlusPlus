@@ -30,6 +30,12 @@ The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request 
     
     
 #### Changelog:  
+**1.0.5 - 20140708**
+  - Add compatibility for Jython 2.5 (stable)
+  - Improve cache poisoning detection
+  - Add a cachebust parameter to prevent accidental cache poisoning
+  - Misc. bugfixes
+  
 **1.0.4 - 20140616**
   - Prevent RPO false positives by checking page's DOCTYPE
   - Reduce host header poisoning false negatives

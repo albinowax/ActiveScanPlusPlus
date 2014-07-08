@@ -18,7 +18,7 @@ import jarray, pickle, random, re, string, time
 from string import Template
 from cgi import escape
 
-version = "1.0.4"
+version = "1.0.5"
 callbacks = None
 
 class BurpExtender(IBurpExtender):
@@ -103,7 +103,6 @@ class CodeExec(IScannerCheck):
         # Time how long each response takes compared to the baseline
         # Assumes <4 seconds jitter
         baseTime = 0
-        #self._attack(basePair, insertionPoint, next(iter(payloads)), 0)[0]
         for payload in payloads:
             if(baseTime == 0):
                 baseTime = self._attack(basePair, insertionPoint, payload, 0)[0]
@@ -286,9 +285,22 @@ class HostInsertionPoint(IScannerInsertionPoint):
         request = self._helpers.bytesToString(basePair.getRequest())
         request = request.replace('$', '\$')
         request = request.replace('/', '$abshost/', 1)
+        
+        # add a cachebust parameter
+        if ('?' in request[0:request.index('\n')]):
+            request = re.sub('(?i)([a-z]+ [^ ]+)', r'\1&cachebust=${cachebust}', request, 1)
+        else:
+            request = re.sub('(?i)([a-z]+ [^ ]+)', r'\1?cachebust=${cachebust}', request, 1)
+        
         request = re.sub('(?im)^Host: [a-zA-Z0-9-_.:]*', 'Host: ${host}${xfh}', request, 1)
         if('REFERER' in rawHeaders):
             request = re.sub('(?im)^Referer: http[s]?://[a-zA-Z0-9-_.:]*', 'Referer: ${referer}', request, 1)
+            
+        if('CACHE-CONTROL' in rawHeaders):
+            request = re.sub('(?im)^Cache-Control: [^\r\n]+', 'Cache-Control: no-cache', request, 1)
+        else:
+            request = request.replace('Host: ${host}${xfh}', 'Host: ${host}${xfh}\r\nCache-Control: no-cache', 1)
+            
         self._requestTemplate = Template(request)
         return None
           
@@ -314,7 +326,10 @@ class HostInsertionPoint(IScannerInsertionPoint):
         for key in ('xfh','abshost','host','referer'):
             if key not in payloads:
                 payloads[key] = ''
-                
+                            
+        # Ensure that the response to our request isn't cached - that could be harmful
+        payloads['cachebust'] = time.time()
+        
         request = self._requestTemplate.substitute(payloads)
         return self._helpers.stringToBytes(request)
         
