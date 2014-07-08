@@ -102,8 +102,11 @@ class CodeExec(IScannerCheck):
         
         # Time how long each response takes compared to the baseline
         # Assumes <4 seconds jitter
-        baseTime = self._attack(basePair, insertionPoint, next(iter(payloads)), 0)[0]
+        baseTime = 0
+        #self._attack(basePair, insertionPoint, next(iter(payloads)), 0)[0]
         for payload in payloads:
+            if(baseTime == 0):
+                baseTime = self._attack(basePair, insertionPoint, payload, 0)[0]
             if(self._attack(basePair, insertionPoint, payload, 10)[0] > baseTime+6):
                 print "Suspicious delay detected. Confirming it's consistent..."
                 (dummyTime, dummyAttack) = self._attack(basePair, insertionPoint, payload, 0)
@@ -160,7 +163,9 @@ class HostAttack(IScannerInsertionPointProvider, IScannerCheck):
                        
     def getInsertionPoints(self, basePair):
         rawHeaders = self._helpers.analyzeRequest(basePair.getRequest()).getHeaders()
-        headers = { header.split(': ')[0].upper():header.split(': ', 1)[1] for header in rawHeaders[1:] }
+        
+        # Parse the headers into a dictionary
+        headers = dict( (header.split(': ')[0].upper(), header.split(': ', 1)[1]) for header in rawHeaders[1:] )
         
         # If the request doesn't use the host header, bail
         if ('HOST' not in headers.keys()):
@@ -281,9 +286,9 @@ class HostInsertionPoint(IScannerInsertionPoint):
         request = self._helpers.bytesToString(basePair.getRequest())
         request = request.replace('$', '\$')
         request = request.replace('/', '$abshost/', 1)
-        request = re.sub('^Host: [a-zA-Z0-9-_.:]*', 'Host: ${host}${xfh}', request, 1, flags=re.IGNORECASE|re.MULTILINE)
+        request = re.sub('(?im)^Host: [a-zA-Z0-9-_.:]*', 'Host: ${host}${xfh}', request, 1)
         if('REFERER' in rawHeaders):
-            request = re.sub('^Referer: http[s]?://[a-zA-Z0-9-_.:]*', 'Referer: ${referer}', request, 1, flags=re.IGNORECASE|re.MULTILINE)
+            request = re.sub('(?im)^Referer: http[s]?://[a-zA-Z0-9-_.:]*', 'Referer: ${referer}', request, 1)
         self._requestTemplate = Template(request)
         return None
           
@@ -367,10 +372,10 @@ class PassiveChecks(IScannerCheck):
             if('x-content-type-options: nosniff' in headers or 'x-frame-options:' in headers):
                 return None
             
-        stylesheets = re.findall('(<link[^>]+?rel=["\']stylesheet.*?>)', body, re.IGNORECASE)
+        stylesheets = re.findall('(?i)(<link[^>]+?rel=["\']stylesheet.*?>)', body)
         vulnerable_imports = []
         for stylesheet in stylesheets:
-            if(re.search('href=["\'](?!/|http:|https:|data:).*?', stylesheet, re.IGNORECASE)):
+            if(re.search('(?i)href=["\'](?!/|http:|https:|data:).*?', stylesheet)):
                 vulnerable_imports.append(escape(stylesheet))
         if(vulnerable_imports):
             url = self._helpers.analyzeRequest(basePair).getUrl()
@@ -439,7 +444,7 @@ def htmllist(list):
     return "<ul>"+"\n".join(list)+"</ul>"
     
 def tagmap(resp):
-    tags = ''.join(re.findall("(<[a-z]+)", resp, flags=re.MULTILINE|re.IGNORECASE))
+    tags = ''.join(re.findall("(?im)(<[a-z]+)", resp))
     return tags 
 
 def hit(resp, baseprint):
