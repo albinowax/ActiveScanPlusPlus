@@ -18,7 +18,7 @@ import jarray, pickle, random, re, string, time
 from string import Template
 from cgi import escape
 
-version = "1.0.5"
+version = "1.0.6"
 callbacks = None
 
 class BurpExtender(IBurpExtender):

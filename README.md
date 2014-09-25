@@ -3,7 +3,7 @@ ActiveScan++
 
 ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Designed to add minimal network overhead, it adds checks for the following issues:
 
-  - Dynamic code injection (PHP/Perl/Ruby's eval(), expression language injection)
+  - Dynamic code injection (PHP/Perl/Ruby's eval(), expression language injection, CVE-2014-6271)
   - Host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
   - OS command injection (designed to complement Burp's coverage)
   - Relative Path Overwrite
@@ -14,7 +14,7 @@ Rather than risking numerous false negatives by attempting to automate Relative 
 
 1. 'Extender'->'Options'
 2. Click 'Select file' under 'Python environment'
-3. Choose jython-standalone-2.7-b1.jar
+3. Choose jython-standalone-2.5.jar
 4. 'Extender'->'Extensions'
 5. Click 'Add'
 6. Change 'Extension Type' to Python
@@ -29,7 +29,10 @@ The host header checks tamper with the host header, which may result in requests
 The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request cannot be null.' during active scans. This is a currently unavoidable side effect of the host header attacks, and has no actual effort on the scanner's effectiveness.
     
     
-#### Changelog:  
+#### Changelog:
+**1.0.6 - 20140925**
+  - Add a test for CVE-2014-6271
+
 **1.0.5 - 20140708**
   - Add compatibility for Jython 2.5 (stable)
   - Improve cache poisoning detection
