@@ -3,12 +3,17 @@ ActiveScan++
 
 ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Designed to add minimal network overhead, it adds checks for the following issues:
 
-  - Dynamic code injection (PHP/Perl/Ruby's eval(), expression language injection, CVE-2014-6271)
+  - Dynamic code injection (PHP/Perl/Ruby's eval(), expression language injection)
   - Host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
   - OS command injection (designed to complement Burp's coverage)
   - Relative Path Overwrite
+  - CVE-2014-6271 'shellshock'
     
-Rather than risking numerous false negatives by attempting to automate Relative Path Overwrite and Host header attacks from start to finish, it identifies key vulnerability components and flags these for user review. 
+Rather than risking numerous false negatives by attempting to automate Relative Path Overwrite and Host header attacks from start to finish, it identifies key vulnerability components and flags these for user review.
+ 
+#### Requirements:
+Burp Suite Professional (version 1.6 or later)
+Jython 2.5 or later standalone: http://www.jython.org/downloads.html
 
 #### Manual installation:
 
@@ -26,10 +31,13 @@ To invoke these checks, just run a normal active scan. The Relative Path Overwri
 
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
 
-The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request cannot be null.' during active scans. This is a currently unavoidable side effect of the host header attacks, and has no actual effort on the scanner's effectiveness.
+The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request cannot be null.' during active scans. This is a currently unavoidable side effect of the host header attacks, and has no actual impact on the scanner's effectiveness.
     
     
 #### Changelog:
+**1.0.7 - 20140926**
+  - Tweak test for CVE-2014-6271 for better coverage
+  
 **1.0.6 - 20140925**
   - Add a test for CVE-2014-6271
 
