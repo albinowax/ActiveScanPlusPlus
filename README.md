@@ -7,7 +7,7 @@ ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Desi
   - Host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
   - OS command injection (designed to complement Burp's coverage)
   - Relative Path Overwrite
-  - CVE-2014-6271 'shellshock'
+  - CVE-2014-6271 'shellshock' and CVE-2014-6278 (lcamtuf's shellshock followup)
     
 Rather than risking numerous false negatives by attempting to automate Relative Path Overwrite and Host header attacks from start to finish, it identifies key vulnerability components and flags these for user review.
  
@@ -35,6 +35,9 @@ The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request 
     
     
 #### Changelog:
+**1.0.8 - 20141001**
+  - Add tentative test for CVE-2014-6278
+  
 **1.0.7 - 20140926**
   - Tweak test for CVE-2014-6271 for better coverage
   

