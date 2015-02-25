@@ -3,11 +3,9 @@ ActiveScan++
 
 ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Designed to add minimal network overhead, it adds checks for the following issues:
 
-  - Dynamic code injection (PHP/Perl/Ruby's eval(), expression language injection)
   - Host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
   - OS command injection (designed to complement Burp's coverage)
-  - Relative Path Overwrite
-  - CVE-2014-6271 'shellshock' and CVE-2014-6278 (lcamtuf's shellshock followup)
+  - CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080
     
 Rather than risking numerous false negatives by attempting to automate Relative Path Overwrite and Host header attacks from start to finish, it identifies key vulnerability components and flags these for user review.
  
@@ -35,6 +33,11 @@ The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request 
     
     
 #### Changelog:
+**1.0.9 - 20150225**
+  - Add tentative test for CVE-2015-2080
+  - Remove dynamic code injection and RPO checks - these are now implemented in core Burp
+  - Provide a useful error message when someone foolishly tries using Jython 2.7 beta
+  
 **1.0.8 - 20141001**
   - Add tentative test for CVE-2014-6278
   

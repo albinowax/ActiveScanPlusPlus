@@ -1,5 +1,5 @@
 # Author: James Kettle <albinowax+acz@gmail.com>
-# Copyright 2014 Context Information Security
+# Copyright 2014 Context Information Security up to 1.0.5
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,20 +12,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+try:
+    import pickle
+    import random
+    import re
+    import string
+    import time
+    from string import Template
+    from cgi import escape
 
-import pickle
-import random
-import re
-import string
-import time
-from string import Template
-from cgi import escape
-
-from burp import IBurpExtender, IScannerInsertionPointProvider, IScannerInsertionPoint, IParameter, IScannerCheck, IScanIssue
-import jarray
+    from burp import IBurpExtender, IScannerInsertionPointProvider, IScannerInsertionPoint, IParameter, IScannerCheck, IScanIssue
+    import jarray
+except ImportError:
+    print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
 
-version = "1.0.8"
+version = "1.0.9"
 callbacks = None
 
 
@@ -39,18 +41,32 @@ class BurpExtender(IBurpExtender):
         # Register host attack components
         host = HostAttack(callbacks)
         callbacks.registerScannerInsertionPointProvider(host)
-        callbacks.registerScannerCheck(host);
+        callbacks.registerScannerCheck(host)
 
         # Register code exec component
-        callbacks.registerScannerCheck(CodeExec(callbacks));
+        callbacks.registerScannerCheck(CodeExec(callbacks))
 
-        # Register passive scan component
-        callbacks.registerScannerCheck(PassiveChecks(callbacks));
+
+        callbacks.registerScannerCheck(JetLeak(callbacks))
 
         print "Successfully loaded activeScan++ v" + version
 
         return
 
+class JetLeak(IScannerCheck):
+    def __init__(self, callbacks):
+        self._helpers = callbacks.getHelpers()
+
+    def doActiveScan(self, basePair, insertionPoint):
+        if 'Referer' != insertionPoint.getInsertionPointName():
+            return None
+        attack = callbacks.makeHttpRequest(basePair.getHttpService(), insertionPoint.buildRequest("\x00"))
+        resp_start = self._helpers.bytesToString(attack.getResponse())[:30]
+        if '500 Illegal character 0x0 in state' in resp_start:
+            return [CustomScanIssue(attack.getHttpService(), self._helpers.analyzeRequest(attack).getUrl(), [attack], 'CVE-2015-2080 (JetLeak)',
+                                                "The application appears to be running a version of Jetty vulnerable to CVE-2015-2080, which allows attackers to read out private server memory.<br/>"
+                                                "Refer to http://blog.gdssecurity.com/labs/2015/2/25/jetleak-vulnerability-remote-leakage-of-shared-buffers-in-je.html for further information.", 'Firm', 'High')]
+        return None
 
 # This extends the active scanner with a number of timing-based code execution checks
 # _payloads contains the payloads, designed to delay the response by $time seconds
@@ -62,15 +78,12 @@ class CodeExec(IScannerCheck):
         self._done = getIssues('Code injection')
 
         self._payloads = {
-            # eval() injection
-            'php': ['{$${sleep($time)}}', "'.sleep($time).'", '".sleep($time)."', 'sleep($time)'],
-            'perl': ["'.sleep($time).'", '".sleep($time)."', 'sleep($time)'],
-            'ruby': ["'+sleep($time)+'", '"+sleep($time)+"'],
-
             # Exploits shell command injection into '$input' on linux and "$input" on windows:
             # and CVE-2014-6271, CVE-2014-6278
             'any': ['"&timeout $time&\'`sleep $time`\'', '() { :;}; /bin/sleep $time', '() { _; } >_[$$($$())] { /bin/sleep $time; }'],
-
+            'php': [],
+            'perl': [],
+            'ruby': [],
             # Expression language injection
             'java': [
                 '$${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{"timeout","$time"})).start()).getInputStream()))).readLine()}$${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{"sleep","$time"})).start()).getInputStream()))).readLine()}'],
@@ -357,71 +370,6 @@ class HostInsertionPoint(IScannerInsertionPoint):
         return INS_EXTENSION_PROVIDED
 
 
-class PassiveChecks(IScannerCheck):
-    def __init__(self, callbacks):
-        self._helpers = callbacks.getHelpers()
-        self._rpo = [location(i) for i in getIssues('Relative CSS include')]
-
-    def doPassiveScan(self, basePair):
-        response = self._helpers.bytesToString(basePair.getResponse())
-        response = response.splitlines()
-        content_start = response.index('')
-        headers = '\r\n'.join(response[1:content_start])
-        body = '\r\n'.join(response[content_start + 1:])
-
-        # List of passive scanning functions
-        checks = [
-            self.relative_path_overwrite,
-        ]
-        issues = []
-        for check in checks:
-            issue = check(basePair, headers.lower(), body.lower().strip())
-            if (issue):
-                issues.append(issue)
-
-        return issues
-
-    # Passively detect potential Relative Path Overwrite vulnerabilities
-    # See http://www.thespanner.co.uk/2014/03/21/rpo/'>http://www.thespanner.co.uk/2014/03/21/rpo/
-    def relative_path_overwrite(self, basePair, headers, body):
-        if (body == ''):
-            return None
-
-        # Skip if the response isn't HTML or is ludicrously long
-        if (('content-type' in headers and not re.search('content-type: .*?text/', headers)) or len(body) > 50000):
-            return None
-
-        # Skip if there is a <base declaration - this overrides the path rendering RPO unexploitable
-        if ('<base ' in body):
-            return None
-
-        # Most <!doctype declarations force strict mode, preventing text/html documents being accepted as CSS and making RPO unexploitable
-        # however, IE quirks mode can be forced using iframe inheritance
-        # however, X-Content-Type-Options: nosniff prevents RPO in IE
-        docline = body.splitlines()[0]
-        if (docline[:9] == '<!doctype' and not ('html 4.' in docline and 'dtd' not in docline)):
-            if ('x-content-type-options: nosniff' in headers or 'x-frame-options:' in headers):
-                return None
-
-        stylesheets = re.findall('(?i)(<link[^>]+?rel=["\']stylesheet.*?>)', body)
-        vulnerable_imports = []
-        for stylesheet in stylesheets:
-            if (re.search('(?i)href=["\'](?!/|http:|https:|data:).*?', stylesheet)):
-                vulnerable_imports.append(escape(stylesheet))
-        if (vulnerable_imports):
-            url = self._helpers.analyzeRequest(basePair).getUrl()
-            if (location(url) not in self._rpo):
-                self._rpo.append(location(url))
-                return CustomScanIssue(basePair.getHttpService(), url, [basePair], 'Relative CSS include',
-                                       "The application uses path-relative stylesheet imports:<p>" + htmllist(
-                                           vulnerable_imports) + "It may be possible to manipulate this page into loading itself as a stylesheet. If this page displays stored user input or reflects the path, Referer or Cookie headers, it can be used for a Relative Path Overwrite attack. See <a href='http://www.thespanner.co.uk/2014/03/21/rpo/'>http://www.thespanner.co.uk/2014/03/21/rpo/</a> for further details.",
-                                       'Tentative', 'High')
-            else:
-                print "Not reporting duplicate RPO on " + str(url)
-
-        return None
-
-
 class CustomScanIssue(IScanIssue):
     def __init__(self, httpService, url, httpMessages, name, detail, confidence, severity):
         self.HttpService = httpService
@@ -498,4 +446,3 @@ def issuesMatch(existingIssue, newIssue):
 def getIssues(name):
     prev_reported = filter(lambda i: i.getIssueName() == name, callbacks.getScanIssues(''))
     return (map(lambda i: i.getUrl(), prev_reported))
-        
