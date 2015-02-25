@@ -62,7 +62,7 @@ class JetLeak(IScannerCheck):
             return None
         attack = callbacks.makeHttpRequest(basePair.getHttpService(), insertionPoint.buildRequest("\x00"))
         resp_start = self._helpers.bytesToString(attack.getResponse())[:30]
-        if '500 Illegal character 0x0 in state' in resp_start:
+        if '400 Illegal character 0x0 in state' in resp_start:
             return [CustomScanIssue(attack.getHttpService(), self._helpers.analyzeRequest(attack).getUrl(), [attack], 'CVE-2015-2080 (JetLeak)',
                                                 "The application appears to be running a version of Jetty vulnerable to CVE-2015-2080, which allows attackers to read out private server memory.<br/>"
                                                 "Refer to http://blog.gdssecurity.com/labs/2015/2/25/jetleak-vulnerability-remote-leakage-of-shared-buffers-in-je.html for further information.", 'Firm', 'High')]
