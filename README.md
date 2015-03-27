@@ -33,6 +33,10 @@ The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request 
     
     
 #### Changelog:
+**1.0.10 - 20150327**
+  - Add test for ruby open() exploit - see http://sakurity.com/blog/2015/02/28/openuri.html
+  - Assorted minor tweaks and fixes
+  
 **1.0.9 - 20150225**
   - Add tentative test for CVE-2015-2080
   - Remove dynamic code injection and RPO checks - these are now implemented in core Burp
