@@ -85,7 +85,7 @@ class CodeExec(IScannerCheck):
             'any': ['"&ping -n $time localhost&\'`sleep $time`\'', '() { :;}; /bin/sleep $time', '() { _; } >_[$$($$())] { /bin/sleep $time; }'],
             'php': [],
             'perl': [],
-            'ruby': ['|timeout $time&sleep $time'],
+            'ruby': ['|sleep $time & ping -n $time localhost'],
             # Expression language injection
             'java': [
                 '$${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{"timeout","$time"})).start()).getInputStream()))).readLine()}$${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{"sleep","$time"})).start()).getInputStream()))).readLine()}'],
