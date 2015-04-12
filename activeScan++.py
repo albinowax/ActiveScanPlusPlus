@@ -27,7 +27,7 @@ except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
 
-version = "1.0.10"
+version = "1.0.11"
 callbacks = None
 
 
@@ -46,12 +46,75 @@ class BurpExtender(IBurpExtender):
         # Register code exec component
         callbacks.registerScannerCheck(CodeExec(callbacks))
 
-
+        callbacks.registerScannerCheck(SuspectTransform(callbacks))
         callbacks.registerScannerCheck(JetLeak(callbacks))
 
         print "Successfully loaded activeScan++ v" + version
 
         return
+
+
+# Detect suspicious input transformations
+class SuspectTransform(IScannerCheck):
+    def __init__(self, callbacks):
+        self._helpers = callbacks.getHelpers()
+
+        self.checks = {
+            'hex decode': self.detect_hex_decode,
+            'arithmetic evaluation': self.detect_arithmetic,
+            'expression evaluation': self.detect_expression,
+        }
+
+        self.confirm_count = 2
+
+    def detect_hex_decode(self, base):
+        expect = randstr(8)
+        probe = '\\x'+'\\x'.join([str(hex(ord(c)))[2:] for c in expect])
+        return probe, expect
+
+    def detect_arithmetic(self, base):
+        x = random.randint(99, 9999)
+        y = random.randint(99, 9999)
+        probe = str(x)+'*'+str(y)
+        expect = str(x*y)
+        return probe, expect
+
+    def detect_expression(self, base):
+        probe, expect = self.detect_arithmetic(base)
+        return '${'+probe+'}', expect
+
+    #def detect_shell(self, base):
+    #    probe, expect = self.detect_arithmetic(base)
+    #    return '`'+probe+'`', expect
+
+    def doActiveScan(self, basePair, insertionPoint):
+        base = insertionPoint.getBaseValue()
+        initial_response = self._helpers.bytesToString(basePair.getResponse())
+        issues = []
+        for name, check in self.checks.items():
+
+            for attempt in range(self.confirm_count):
+                probe, expect = '', ''
+                while expect in initial_response:
+                    probe, expect = check(base)
+
+                print "Trying "+probe
+                attack = callbacks.makeHttpRequest(basePair.getHttpService(), insertionPoint.buildRequest(probe))
+                attack_response = self._helpers.bytesToString(attack.getResponse())
+                if expect not in attack_response:
+                    break
+
+                if attempt == self.confirm_count-1:
+                    issues.append(CustomScanIssue(attack.getHttpService(), self._helpers.analyzeRequest(attack).getUrl(), [attack], 'Suspect input transformation: '+name,
+                                                "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
+                                                "The following probe was sent: <b>" + probe +
+                                                "</b><br/>The server response contained the evaluated result: <b>" + expect +
+                                                "</b><br/><br/>Manual investigation is advised.", 'Tentative', 'High'))
+
+        return issues
+
+
+
 
 # Detect CVE-2015-2080
 # Technique based on https://github.com/GDSSecurity/Jetleak-Testing-Script/blob/master/jetleak_tester.py
@@ -186,7 +249,7 @@ class HostAttack(IScannerInsertionPointProvider, IScannerCheck):
     def __init__(self, callbacks):
         self._helpers = callbacks.getHelpers()
 
-        self._referer = ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(6))
+        self._referer = randstr(6)
 
         # Load previously identified scanner issues to prevent duplicates
         try:
@@ -234,7 +297,7 @@ class HostAttack(IScannerInsertionPointProvider, IScannerCheck):
         baseprint = tagmap(resp)
 
         # Send several requests with invalid host headers and observe whether they reach the target application, and whether the host header is reflected
-        taint = ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(6))
+        taint = randstr(6)
         taint += '.' + legit
         issues = []
 
@@ -438,6 +501,8 @@ def tagmap(resp):
     tags = ''.join(re.findall("(?im)(<[a-z]+)", resp))
     return tags
 
+def randstr(length=12):
+    return ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(length))
 
 def hit(resp, baseprint):
     return (baseprint == tagmap(resp))
