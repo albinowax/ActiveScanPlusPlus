@@ -92,6 +92,8 @@ class SuspectTransform(IScannerCheck):
             'hex decode': self.detect_hex_decode,
             'arithmetic evaluation': self.detect_arithmetic,
             'expression evaluation': self.detect_expression,
+            'EL evaluation': self.detect_alt_expression,
+            'single-quoted string evaluation': self.detect_sql,
         }
 
         self.confirm_count = 2
@@ -111,6 +113,14 @@ class SuspectTransform(IScannerCheck):
     def detect_expression(self, base):
         probe, expect = self.detect_arithmetic(base)
         return '${'+probe+'}', expect
+
+    def detect_alt_expression(self, base):
+        probe, expect = self.detect_arithmetic(base)
+        return '%{'+probe+'}', expect
+
+    def detect_sql(self, base):
+        probe, expect = self.detect_arithmetic(base)
+        return "'+"+probe+"+'", expect
 
     #def detect_shell(self, base):
     #    probe, expect = self.detect_arithmetic(base)

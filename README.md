@@ -33,6 +33,11 @@ The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request 
     
     
 #### Changelog:
+**1.0.11 - 20150327**
+  - Detect misc code injection via suspicious input transformation (eg \x41->A)
+  - Report when applications appear to handle XML input
+  - Set Connection: close on outgoing requests for speed
+  
 **1.0.10 - 20150327**
   - Add test for ruby open() exploit - see http://sakurity.com/blog/2015/02/28/openuri.html
   - Assorted minor tweaks and fixes
