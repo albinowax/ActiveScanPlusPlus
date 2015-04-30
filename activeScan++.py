@@ -52,10 +52,34 @@ class BurpExtender(IBurpExtender):
         callbacks.registerScannerCheck(SuspectTransform())
         callbacks.registerScannerCheck(JetLeak())
         callbacks.registerScannerCheck(CodePath())
+        callbacks.registerScannerCheck(JSONP())
 
         print "Successfully loaded activeScan++ v" + version
 
         return
+
+
+class JSONP(IScannerCheck):
+    def doPassiveScan(self, basePair):
+        resp = basePair.getResponse()
+        respinfo = helpers.analyzeResponse(resp)
+        mimetype = respinfo.getStatedMimeType().split(';')[0]
+        json_types = ['script', 'JSON', 'text']
+        if mimetype in json_types:
+            body = helpers.bytesToString(resp[respinfo.getBodyOffset():])
+            body = body.rstrip(' \r\n\t;')
+            if '\n' not in body:
+                request_headers = helpers.analyzeRequest(basePair.getRequest()).getHeaders()
+                for header in request_headers:
+                    if header.startswith('Cookie: '):
+                        if re.match('^[ a-zA-Z_.0-9]+\(.*\)$', body):
+                            return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(), [basePair],
+                                'JSONP', "bla JSONP", 'Tentative', 'Information')]
+                        break
+        return []
+
+
+
 
 # Try to tell whether the application accepts XML input
 class CodePath(IScannerCheck):
@@ -70,7 +94,7 @@ class CodePath(IScannerCheck):
                 zml_resp, zml_req = self._attack(basePair, 'application/zml')
                 assert zml_resp != -1
                 if zml_resp != xml_resp:
-                    return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(), [basePair, xml_req],
+                    return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(), [basePair, xml_req, zml_req],
                     'Alternative code path', "bla XML", 'Tentative', 'Information')]
 
         return []
@@ -93,7 +117,6 @@ class SuspectTransform(IScannerCheck):
             'arithmetic evaluation': self.detect_arithmetic,
             'expression evaluation': self.detect_expression,
             'EL evaluation': self.detect_alt_expression,
-            'single-quoted string evaluation': self.detect_sql,
         }
 
         self.confirm_count = 2
@@ -117,14 +140,6 @@ class SuspectTransform(IScannerCheck):
     def detect_alt_expression(self, base):
         probe, expect = self.detect_arithmetic(base)
         return '%{'+probe+'}', expect
-
-    def detect_sql(self, base):
-        probe, expect = self.detect_arithmetic(base)
-        return "'+"+probe+"+'", expect
-
-    #def detect_shell(self, base):
-    #    probe, expect = self.detect_arithmetic(base)
-    #    return '`'+probe+'`', expect
 
     def doActiveScan(self, basePair, insertionPoint):
         if (insertionPoint.getInsertionPointName() == "hosthacker" or insertionPoint.getInsertionPointName() == 'generic_request'):
