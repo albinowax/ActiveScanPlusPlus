@@ -5,9 +5,14 @@ ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Desi
 
   - Host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
   - OS command injection (designed to complement Burp's coverage)
+  - JSONP usage (this can enables cross-domain data retrieval)
+  - Blind code injection via expression language, Ruby's open()
   - CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080
+  - XML input handling
+  - Suspicious input transformation (eg 7*7 => '49', \x41\x41 => 'AA')
+
     
-Rather than risking numerous false negatives by attempting to automate Relative Path Overwrite and Host header attacks from start to finish, it identifies key vulnerability components and flags these for user review.
+Rather than risking numerous false negatives by attempting to automate Host header attacks from start to finish, it identifies key vulnerability components and flags these for user review.
  
 #### Requirements:
 Burp Suite Professional (version 1.6 or later)
@@ -33,6 +38,9 @@ The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request 
     
     
 #### Changelog:
+**1.0.12 - 20150506**
+  - Trigger a fresh passive scan when an alternative code path is identified (combines well with the 'Error Message Checks' extension)
+  
 **1.0.11 - 20150327**
   - Detect misc code injection via suspicious input transformation (eg \x41->A)
   - Report when applications appear to handle XML input

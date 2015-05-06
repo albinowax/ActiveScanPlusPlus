@@ -27,7 +27,7 @@ except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
 
-version = "1.0.11"
+version = "1.0.12"
 callbacks = None
 helpers = None
 
@@ -94,6 +94,9 @@ class CodePath(IScannerCheck):
                 zml_resp, zml_req = self._attack(basePair, 'application/zml')
                 assert zml_resp != -1
                 if zml_resp != xml_resp:
+
+                    # Trigger a passive scan on the new response for good measure
+                    launchPassiveScan(xml_req)
                     return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(), [basePair, xml_req, zml_req],
                     'Alternative code path', "bla XML", 'Tentative', 'Information')]
 
@@ -105,6 +108,7 @@ class CodePath(IScannerCheck):
             return -1, None
         modified, request = setHeader(request, 'Connection', 'close')
         result = callbacks.makeHttpRequest(basePair.getHttpService(), request)
+
         return tagmap(helpers.bytesToString(result.getResponse())), result
 
 
@@ -569,6 +573,14 @@ class CustomScanIssue(IScanIssue):
 
 
 # misc utility methods
+
+def launchPassiveScan(attack):
+    service = attack.getHttpService()
+    using_https = service.getProtocol == 'http'
+    callbacks.doPassiveScan(service.getHost(), service.getPort(), using_https, attack.getRequest(), attack.getResponse())
+    return
+
+
 def location(url):
     return url.getProtocol() + "://" + url.getAuthority() + url.getPath()
 
