@@ -1,19 +1,19 @@
 ActiveScan++
 ==================
 
-ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Designed to add minimal network overhead, it adds checks for the following issues:
+ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Designed to add minimal network overhead, it identifies application behaviour that may be of interest to advanced testers:
 
-  - Host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
-  - OS command injection (designed to complement Burp's coverage)
-  - JSONP usage (this can enables cross-domain data retrieval)
-  - Blind code injection via expression language, Ruby's open()
-  - CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080
+  - Potential host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
+  - JSONP usage
   - XML input handling
   - Suspicious input transformation (eg 7*7 => '49', \x41\x41 => 'AA')
+  - Passive-scanner issues that only occur during fuzzing (install the 'Error Message Checks' extension for maximum effectiveness)
 
-    
-Rather than risking numerous false negatives by attempting to automate Host header attacks from start to finish, it identifies key vulnerability components and flags these for user review.
- 
+It also adds checks for the following issues:
+
+  - Blind code injection via expression language, Ruby's open()
+  - CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080
+  
 #### Requirements:
 Burp Suite Professional (version 1.6 or later)
 Jython 2.5 or later standalone: http://www.jython.org/downloads.html
@@ -38,7 +38,7 @@ The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request 
     
     
 #### Changelog:
-**1.0.12 - 20150506**
+**1.0.12 - 20151118**
   - Trigger a fresh passive scan when an alternative code path is identified (combines well with the 'Error Message Checks' extension)
   
 **1.0.11 - 20150327**
