@@ -27,7 +27,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-version = "1.0.13"
+version = "1.0.12"
 callbacks = None
 helpers = None
 
@@ -92,7 +92,7 @@ class JSONP(IScannerCheck):
 # Stacks nicely with the 'Error Message Checks' extension
 class SimpleFuzz(IScannerCheck):
     def doActiveScan(self, basePair, insertionPoint):
-        attack = request(basePair, insertionPoint, 'a\'a\\\'b"c>?>%}}%%>c<[[?${{%%<%}}cake\\')
+        attack = request(basePair, insertionPoint, 'a\'a\\\'b"c>?>%}}%%>c<[[?${{%}}cake\\')
         if tagmap(helpers.bytesToString(attack.getResponse())) != tagmap(helpers.bytesToString(basePair.getResponse())):
             launchPassiveScan(attack)
 
@@ -571,7 +571,7 @@ class CustomScanIssue(IScanIssue):
         self.Url = url
         self.HttpMessages = httpMessages
         self.Name = name
-        self.Detail = detail + '<br/><br/><div style="font-size:8px">This issue was reported by ActiveScan++</div>'
+        self.Detail = detail
         self.Severity = severity
         self.Confidence = confidence
         print "Reported: " + name + " on " + str(url)

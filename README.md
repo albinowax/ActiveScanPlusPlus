@@ -30,7 +30,7 @@ Jython 2.5 or later standalone: http://www.jython.org/downloads.html
 8. Done!
 
 #### Usage notes:
-To invoke these checks, just run a normal active scan. The Relative Path Overwrite check is part of the passive scanner and always active.
+To invoke these checks, just run a normal active scan. The JSONP check is part of the passive scanner and always active.
 
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
 
