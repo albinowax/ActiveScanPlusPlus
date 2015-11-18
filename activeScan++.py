@@ -21,15 +21,16 @@ try:
     from string import Template
     from cgi import escape
 
-    from burp import IBurpExtender, IScannerInsertionPointProvider, IScannerInsertionPoint, IParameter, IScannerCheck, IScanIssue
+    from burp import IBurpExtender, IScannerInsertionPointProvider, IScannerInsertionPoint, IParameter, IScannerCheck, \
+        IScanIssue
     import jarray
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-
-version = "1.0.12"
+version = "1.0.12c"
 callbacks = None
 helpers = None
+
 
 class BurpExtender(IBurpExtender):
     def registerExtenderCallbacks(self, this_callbacks):
@@ -53,6 +54,7 @@ class BurpExtender(IBurpExtender):
         callbacks.registerScannerCheck(JetLeak())
         callbacks.registerScannerCheck(CodePath())
         callbacks.registerScannerCheck(JSONP())
+        callbacks.registerScannerCheck(SimpleFuzz())
 
         print "Successfully loaded activeScan++ v" + version
 
@@ -73,17 +75,35 @@ class JSONP(IScannerCheck):
                 for header in request_headers:
                     if header.startswith('Cookie: '):
                         if re.match('^[ a-zA-Z_.0-9]+\(.*\)$', body):
-                            return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(), [basePair],
-                                'JSONP', "bla JSONP", 'Tentative', 'Information')]
+                            return [
+                                CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
+                                                [basePair],
+                                                'JSONP',
+                                                "The applications appears to be using JSONP. Malicious websites may be able to retrieve this data cross-domain.",
+                                                'Tentative', 'Information')]
                         break
         return []
 
+    def doActiveScan(self, basePair, insertionPoint):
+        return []
 
+
+# Ensure that error pages get passively scanned
+# Stacks nicely with the 'Error Message Checks' extension
+class SimpleFuzz(IScannerCheck):
+    def doActiveScan(self, basePair, insertionPoint):
+        attack = request(basePair, insertionPoint, 'a\'a\\\'b"c>?>%}}%%>c<[[<?${{%%<%}}\\')
+        if tagmap(helpers.bytesToString(attack.getResponse())) != tagmap(helpers.bytesToString(basePair.getResponse())):
+            launchPassiveScan(attack)
+
+        return []
+
+    def doPassiveScan(self, basePair):
+        return []
 
 
 # Try to tell whether the application accepts XML input
 class CodePath(IScannerCheck):
-
     def doActiveScan(self, basePair, insertionPoint):
         if insertionPoint.getInsertionPointName() != 'generic_request':
             return []
@@ -94,11 +114,13 @@ class CodePath(IScannerCheck):
                 zml_resp, zml_req = self._attack(basePair, 'application/zml')
                 assert zml_resp != -1
                 if zml_resp != xml_resp:
-
                     # Trigger a passive scan on the new response for good measure
                     launchPassiveScan(xml_req)
-                    return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(), [basePair, xml_req, zml_req],
-                    'Alternative code path', "bla XML", 'Tentative', 'Information')]
+                    return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
+                                            [basePair, xml_req, zml_req],
+                                            'XML input supported',
+                                            "The application appears to handle application/xml input. Consider investigating whether it's vulnerable to typical XML parsing attacks such as XXE.",
+                                            'Tentative', 'Information')]
 
         return []
 
@@ -110,6 +132,9 @@ class CodePath(IScannerCheck):
         result = callbacks.makeHttpRequest(basePair.getHttpService(), request)
 
         return tagmap(helpers.bytesToString(result.getResponse())), result
+
+    def doPassiveScan(self, basePair):
+        return []
 
 
 # Detect suspicious input transformations
@@ -127,26 +152,27 @@ class SuspectTransform(IScannerCheck):
 
     def detect_hex_decode(self, base):
         expect = randstr(8)
-        probe = '\\x'+'\\x'.join([str(hex(ord(c)))[2:] for c in expect])
+        probe = '\\x' + '\\x'.join([str(hex(ord(c)))[2:] for c in expect])
         return probe, expect
 
     def detect_arithmetic(self, base):
         x = random.randint(99, 9999)
         y = random.randint(99, 9999)
-        probe = str(x)+'*'+str(y)
-        expect = str(x*y)
+        probe = str(x) + '*' + str(y)
+        expect = str(x * y)
         return probe, expect
 
     def detect_expression(self, base):
         probe, expect = self.detect_arithmetic(base)
-        return '${'+probe+'}', expect
+        return '${' + probe + '}', expect
 
     def detect_alt_expression(self, base):
         probe, expect = self.detect_arithmetic(base)
-        return '%{'+probe+'}', expect
+        return '%{' + probe + '}', expect
 
     def doActiveScan(self, basePair, insertionPoint):
-        if (insertionPoint.getInsertionPointName() == "hosthacker" or insertionPoint.getInsertionPointName() == 'generic_request'):
+        if (
+                insertionPoint.getInsertionPointName() == "hosthacker" or insertionPoint.getInsertionPointName() == 'generic_request'):
             return []
         base = insertionPoint.getBaseValue()
         initial_response = helpers.bytesToString(basePair.getResponse())
@@ -158,35 +184,46 @@ class SuspectTransform(IScannerCheck):
                 while expect in initial_response:
                     probe, expect = check(base)
 
-                print "Trying "+probe
+                print "Trying " + probe
                 attack = request(basePair, insertionPoint, probe)
                 attack_response = helpers.bytesToString(attack.getResponse())
                 if expect not in attack_response:
                     break
 
-                if attempt == self.confirm_count-1:
-                    issues.append(CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack], 'Suspect input transformation: '+name,
-                                                "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
-                                                "The following probe was sent: <b>" + probe +
-                                                "</b><br/>The server response contained the evaluated result: <b>" + expect +
-                                                "</b><br/><br/>Manual investigation is advised.", 'Tentative', 'High'))
+                if attempt == self.confirm_count - 1:
+                    issues.append(
+                        CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                                        'Suspicious input transformation: ' + name,
+                                        "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
+                                        "The following probe was sent: <b>" + probe +
+                                        "</b><br/>The server response contained the evaluated result: <b>" + expect +
+                                        "</b><br/><br/>Manual investigation is advised.", 'Tentative', 'High'))
 
         return issues
+
+    def doPassiveScan(self, basePair):
+        return []
+
 
 # Detect CVE-2015-2080
 # Technique based on https://github.com/GDSSecurity/Jetleak-Testing-Script/blob/master/jetleak_tester.py
 class JetLeak(IScannerCheck):
-
     def doActiveScan(self, basePair, insertionPoint):
         if 'Referer' != insertionPoint.getInsertionPointName():
             return None
         attack = request(basePair, insertionPoint, "\x00")
         resp_start = helpers.bytesToString(attack.getResponse())[:90]
         if '400 Illegal character 0x0 in state' in resp_start and '<<<' in resp_start:
-            return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack], 'CVE-2015-2080 (JetLeak)',
-                                                "The application appears to be running a version of Jetty vulnerable to CVE-2015-2080, which allows attackers to read out private server memory<br/>"
-                                                "Please refer to http://blog.gdssecurity.com/labs/2015/2/25/jetleak-vulnerability-remote-leakage-of-shared-buffers-in-je.html for further information", 'Firm', 'High')]
+            return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                                    'CVE-2015-2080 (JetLeak)',
+                                    "The application appears to be running a version of Jetty vulnerable to CVE-2015-2080, which allows attackers to read out private server memory<br/>"
+                                    "Please refer to http://blog.gdssecurity.com/labs/2015/2/25/jetleak-vulnerability-remote-leakage-of-shared-buffers-in-je.html for further information",
+                                    'Firm', 'High')]
         return None
+
+    def doPassiveScan(self, basePair):
+        return []
+
 
 # This extends the active scanner with a number of timing-based code execution checks
 # _payloads contains the payloads, designed to delay the response by $time seconds
@@ -200,7 +237,8 @@ class CodeExec(IScannerCheck):
         self._payloads = {
             # Exploits shell command injection into '$input' on linux and "$input" on windows:
             # and CVE-2014-6271, CVE-2014-6278
-            'any': ['"&ping -n $time localhost&\'`sleep $time`\'', '() { :;}; /bin/sleep $time', '() { _; } >_[$$($$())] { /bin/sleep $time; }', '$$(sleep $time)'],
+            'any': ['() { :;}; /bin/sleep $time',
+                    '() { _; } >_[$$($$())] { /bin/sleep $time; }', '$$(sleep $time)', '`sleep $time`'],
             'php': [],
             'perl': [],
             'ruby': ['|sleep $time & ping -n $time localhost'],
@@ -229,9 +267,9 @@ class CodeExec(IScannerCheck):
             'aspx': 'any',
         }
 
-
     def doActiveScan(self, basePair, insertionPoint):
-        if (insertionPoint.getInsertionPointName() == "hosthacker" or insertionPoint.getInsertionPointName() == 'generic_request'):
+        if (
+                insertionPoint.getInsertionPointName() == "hosthacker" or insertionPoint.getInsertionPointName() == 'generic_request'):
             return []
 
         # Decide which payloads to use based on the file extension, using a set to prevent duplicate payloads          
@@ -282,7 +320,6 @@ class CodeExec(IScannerCheck):
             code = [code]
         return code
 
-
     def _attack(self, basePair, insertionPoint, payload, sleeptime):
         payload = Template(payload).substitute(time=sleeptime)
 
@@ -298,6 +335,9 @@ class CodeExec(IScannerCheck):
         attack = callbacks.applyMarkers(attack, requestHighlights, None)
 
         return (timer, attack)
+
+    def doPassiveScan(self, basePair):
+        return []
 
 
 class HostAttack(IScannerInsertionPointProvider, IScannerCheck):
@@ -333,18 +373,17 @@ class HostAttack(IScannerInsertionPointProvider, IScannerCheck):
 
         return [HostInsertionPoint(helpers, basePair, headers)]
 
-
     def doActiveScan(self, basePair, insertionPoint):
 
         # Return if the insertion point isn't the right one
         if (insertionPoint.getInsertionPointName() != "hosthacker"):
-            return None
+            return []
 
         # Return if we've already flagged both issues on this URL
         url = helpers.analyzeRequest(basePair).getUrl()
         host = url.getAuthority()
         if (host in self._rebind and url in self._poison):
-            return None
+            return []
 
         # Send a baseline request to learn what the response should look like    
         legit = insertionPoint.getBaseValue()
@@ -375,7 +414,7 @@ class HostAttack(IScannerInsertionPointProvider, IScannerCheck):
             if (hit(resp, baseprint) and taint in resp and url not in self._poison and self._referer not in resp):
                 issues.append(self._raise(basePair, attack, host, 'abs'))
 
-        #	Host: legit.com
+        # Host: legit.com
         #	X-Forwarded-Host: evil.com
         (attack, resp) = self._attack(basePair, insertionPoint, {'host': legit, 'xfh': taint}, taint)
         if (hit(resp, baseprint) and taint in resp and url not in self._poison and self._referer not in resp):
@@ -430,6 +469,9 @@ class HostAttack(IScannerInsertionPointProvider, IScannerCheck):
         responseHighlights = [jarray.array([m.start(), m.end()], 'i') for m in re.finditer(taint, response)]
         attack = callbacks.applyMarkers(attack, requestHighlights, responseHighlights)
         return (attack, response)
+
+    def doPassiveScan(self, basePair):
+        return []
 
 
 # Take input from HostAttack.doActiveScan() and use it to construct a HTTP request
@@ -488,7 +530,6 @@ class HostInsertionPoint(IScannerInsertionPoint):
         request = self._requestTemplate.substitute(payloads)
         return helpers.stringToBytes(request)
 
-
     def getPayloadOffsets(self, payload):
         return None
 
@@ -497,10 +538,8 @@ class HostInsertionPoint(IScannerInsertionPoint):
 
 
 class GenericRequestInsertionPointProvider(IScannerInsertionPointProvider):
-
     def getInsertionPoints(self, basePair):
         return [GenericRequestInsertionPoint(basePair)]
-
 
 
 class GenericRequestInsertionPoint(IScannerInsertionPoint):
@@ -577,7 +616,8 @@ class CustomScanIssue(IScanIssue):
 def launchPassiveScan(attack):
     service = attack.getHttpService()
     using_https = service.getProtocol == 'http'
-    callbacks.doPassiveScan(service.getHost(), service.getPort(), using_https, attack.getRequest(), attack.getResponse())
+    callbacks.doPassiveScan(service.getHost(), service.getPort(), using_https, attack.getRequest(),
+                            attack.getResponse())
     return
 
 
@@ -630,7 +670,7 @@ def setHeader(request, name, value):
         this = request[i]
         if prev == '\n' and this == '\n':
             break
-        if prev == '\r' and this == '\n' and request[i-2] == '\n':
+        if prev == '\r' and this == '\n' and request[i - 2] == '\n':
             break
         prev = this
         i += 1
@@ -651,7 +691,7 @@ def setHeader(request, name, value):
 
     # stitch the request back together
     if modified:
-        modified_request = helpers.stringToBytes('\n'.join(headers)+'\n') + request[body_start:]
+        modified_request = helpers.stringToBytes('\n'.join(headers) + '\n') + request[body_start:]
     else:
         modified_request = request
     return modified, modified_request
