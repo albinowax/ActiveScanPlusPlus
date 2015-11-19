@@ -74,7 +74,7 @@ class JSONP(IScannerCheck):
                 request_headers = helpers.analyzeRequest(basePair.getRequest()).getHeaders()
                 for header in request_headers:
                     if header.startswith('Cookie: '):
-                        if re.match('^[ a-zA-Z_.0-9]+\(.*\)$', body):
+                        if re.match('^[ a-zA-Z_.0-9]+\(.*\)$', body, flags=re.DOTALL):
                             return [
                                 CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
                                                 [basePair],
@@ -142,6 +142,7 @@ class SuspectTransform(IScannerCheck):
     def __init__(self):
 
         self.checks = {
+            'backslash consumption': self.detect_backslash_consumption,
             'hex decode': self.detect_hex_decode,
             'arithmetic evaluation': self.detect_arithmetic,
             'expression evaluation': self.detect_expression,
@@ -149,6 +150,14 @@ class SuspectTransform(IScannerCheck):
         }
 
         self.confirm_count = 2
+
+
+    def detect_backslash_consumption(self, base):
+        left = randstr(4)
+        right = randstr(4)
+        probe = left + '\\\\' + right
+        expect = left + '\\' + right
+        return probe, expect
 
     def detect_hex_decode(self, base):
         expect = randstr(8)
