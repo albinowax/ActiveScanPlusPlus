@@ -18,6 +18,7 @@ try:
     import re
     import string
     import time
+    import copy
     from string import Template
     from cgi import escape
 
@@ -27,7 +28,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-version = "1.0.12"
+version = "1.0.13"
 callbacks = None
 helpers = None
 
@@ -51,6 +52,7 @@ class BurpExtender(IBurpExtender):
         # Register other scan components
         callbacks.registerScannerCheck(CodeExec())
         callbacks.registerScannerCheck(SuspectTransform())
+        callbacks.registerScannerCheck(ObserveTransform())
         callbacks.registerScannerCheck(JetLeak())
         callbacks.registerScannerCheck(CodePath())
         callbacks.registerScannerCheck(JSONP())
@@ -142,8 +144,7 @@ class SuspectTransform(IScannerCheck):
     def __init__(self):
 
         self.checks = {
-            'backslash consumption': self.detect_backslash_consumption,
-            'hex decode': self.detect_hex_decode,
+            'quote consumption': self.detect_quote_consumption,
             'arithmetic evaluation': self.detect_arithmetic,
             'expression evaluation': self.detect_expression,
             'EL evaluation': self.detect_alt_expression,
@@ -151,18 +152,8 @@ class SuspectTransform(IScannerCheck):
 
         self.confirm_count = 2
 
-
-    def detect_backslash_consumption(self, base):
-        left = randstr(4)
-        right = randstr(4)
-        probe = left + '\\\\' + right
-        expect = left + '\\' + right
-        return probe, expect
-
-    def detect_hex_decode(self, base):
-        expect = randstr(8)
-        probe = '\\x' + '\\x'.join([str(hex(ord(c)))[2:] for c in expect])
-        return probe, expect
+    def detect_quote_consumption(self, base):
+        return anchor_change("''", ["'"])
 
     def detect_arithmetic(self, base):
         x = random.randint(99, 9999)
@@ -186,33 +177,102 @@ class SuspectTransform(IScannerCheck):
         base = insertionPoint.getBaseValue()
         initial_response = helpers.bytesToString(basePair.getResponse())
         issues = []
-        for name, check in self.checks.items():
-
+        checks = copy.copy(self.checks)
+        while checks:
+            name, check = checks.popitem()
             for attempt in range(self.confirm_count):
-                probe, expect = '', ''
-                while expect in initial_response:
-                    probe, expect = check(base)
+                probe, expect = check(base)
+                if isinstance(expect, basestring):
+                    expect = [expect]
 
                 print "Trying " + probe
                 attack = request(basePair, insertionPoint, probe)
                 attack_response = helpers.bytesToString(attack.getResponse())
-                if expect not in attack_response:
-                    break
 
-                if attempt == self.confirm_count - 1:
-                    issues.append(
-                        CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
-                                        'Suspicious input transformation: ' + name,
-                                        "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
-                                        "The following probe was sent: <b>" + probe +
-                                        "</b><br/>The server response contained the evaluated result: <b>" + expect +
-                                        "</b><br/><br/>Manual investigation is advised.", 'Tentative', 'High'))
+                for e in expect:
+                    if e in attack_response and e not in initial_response:
+                        if attempt == self.confirm_count - 1:
+                            issues.append(
+                                CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                                                'Suspicious input transformation: ' + name,
+                                                "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
+                                                "The following probe was sent: <b>" + probe +
+                                                "</b><br/>The server response contained the evaluated result: <b>" + e +
+                                                "</b><br/><br/>Manual investigation is advised.", 'Tentative', 'High'))
+
+                        break
 
         return issues
 
     def doPassiveScan(self, basePair):
         return []
 
+
+class ObserveTransform(IScannerCheck):
+
+    def detect_backslash_consumption(self):
+        return anchor_change("\\\\z", ["\\z"])
+
+    def examine_backslash_handling(self):
+        left = randstr(4)
+        right = randstr(4)
+        probe = left + '\\70z' + right
+        expect = [left + 'pz' + right, left+'8z'+right]  # hex, octal
+        return probe, expect
+
+    def examine_slashx_handling(self):
+        expect = randstr(8)
+        probe = '\\x' + '\\x'.join([str(hex(ord(c)))[2:] for c in expect])
+        return probe, [expect]
+
+    def examine_null_handling(self):
+        return anchor_change("\\0z", ["\x00z"])
+
+    def check(self, basePair, insertionPoint, initial_response, probe, expectations):
+
+        attack = request(basePair, insertionPoint, probe)
+        attack_response = helpers.bytesToString(attack.getResponse())
+        seen = []
+        for expect in expectations:
+            print 'Trying ' + probe + ' to ' + expect
+            if expect in attack_response and expect not in initial_response:
+                seen.append(expect)
+        if not seen:
+            return None
+        return probe, seen, attack
+
+    def doActiveScan(self, basePair, insertionPoint):
+        if (insertionPoint.getInsertionPointName() == "hosthacker" or insertionPoint.getInsertionPointName() == 'generic_request'):
+            return []
+
+        initial_response = helpers.bytesToString(basePair.getResponse())
+
+        results = [self.check(basePair, insertionPoint, initial_response, *self.detect_backslash_consumption())]
+
+        if results[0] is None:
+            return []
+
+        results.append(self.check(basePair, insertionPoint, initial_response, *self.examine_backslash_handling()))
+        results.append(self.check(basePair, insertionPoint, initial_response, *self.examine_slashx_handling()))
+        results.append(self.check(basePair, insertionPoint, initial_response, *self.examine_null_handling()))
+
+        requests = []
+        detail = ''
+        for result_set in results:
+            if result_set is None:
+                continue
+            for output in result_set[1]:
+                detail += '<li> From <b><code>'+result_set[0] + '</code></b> to <b><code>' + output + '</code></b></li>'
+            requests.append(result_set[2])
+
+        return [CustomScanIssue(results[0][2].getHttpService(), helpers.analyzeRequest(results[0][2]).getUrl(), requests,
+                                                'Suspicious input decoding',
+                                                "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
+                                                "The following transformations were observed:<ul>" + detail +
+                                                "</ul><br/><br/>Manual investigation is advised.", 'Tentative', 'High')]
+
+    def doPassiveScan(self, basePair):
+        return []
 
 # Detect CVE-2015-2080
 # Technique based on https://github.com/GDSSecurity/Jetleak-Testing-Script/blob/master/jetleak_tester.py
@@ -644,13 +704,24 @@ def tagmap(resp):
     return tags
 
 
-def randstr(length=12):
-    return ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(length))
+def randstr(length=12, allow_digits=True):
+    candidates = string.ascii_lowercase
+    if allow_digits:
+        candidates += string.digits
+    return ''.join(random.choice(candidates) for x in range(length))
 
 
 def hit(resp, baseprint):
     return (baseprint == tagmap(resp))
 
+def anchor_change(probe, expect):
+    left = randstr(4)
+    right = randstr(4, allow_digits=False)
+    probe = left + probe + right
+    expected = []
+    for x in expect:
+        expected.append(left + x + right)
+    return probe, expected
 
 # currently unused as .getUrl() ignores the query string
 def issuesMatch(existingIssue, newIssue):
