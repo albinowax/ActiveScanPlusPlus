@@ -42,7 +42,7 @@ class BurpExtender(IBurpExtender):
 
         callbacks.setExtensionName("activeScan++")
 
-        callbacks.registerScannerCheck(Testz())
+        callbacks.registerScannerCheck(PerRequestScan())
 
         if not FAST_MODE:
             # Register generic per-request insertion point provider
@@ -67,14 +67,18 @@ class BurpExtender(IBurpExtender):
 
         return
 
-class Testz(IScannerCheck):
+
+class PerRequestScan(IScannerCheck):
     def doPassiveScan(self, basePair):
         return []
 
     def doActiveScan(self, basePair, insertionPoint):
-        print insertionPoint.getInsertionPointName()
-        print self.should_trigger_per_request_attacks(basePair, insertionPoint)
-        print
+        if not self.should_trigger_per_request_attacks(basePair, insertionPoint):
+            return []
+
+        base_resp_string = helpers.bytesToString(basePair.getResponse())
+        base_resp_print = tagmap(base_resp_string)
+        self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
 
 
     def should_trigger_per_request_attacks(self, basePair, insertionPoint):
@@ -102,6 +106,143 @@ class Testz(IScannerCheck):
 
         else:
             return False
+
+
+    def doHostHeaderScan(self, basePair, base_resp_string, base_resp_print):
+
+        rawHeaders = helpers.analyzeRequest(basePair.getRequest()).getHeaders()
+
+        # Parse the headers into a dictionary
+        headers = dict((header.split(': ')[0].upper(), header.split(': ', 1)[1]) for header in rawHeaders[1:])
+
+        # If the request doesn't use the host header, bail
+        if ('HOST' not in headers.keys()):
+            return None
+
+        # If the response doesn't reflect the host header we can't identify successful attacks
+        if (headers['HOST'] not in base_resp_string):
+            print "Skipping host header attacks on this request as the host isn't reflected"
+            return None
+
+        # prepare the attack
+        request = helpers.bytesToString(basePair.getRequest())
+        request = request.replace('$', '\$')
+        request = request.replace('/', '$abshost/', 1)
+
+        # add a cachebust parameter
+        if ('?' in request[0:request.index('\n')]):
+            request = re.sub('(?i)([a-z]+ [^ ]+)', r'\1&cachebust=${cachebust}', request, 1)
+        else:
+            request = re.sub('(?i)([a-z]+ [^ ]+)', r'\1?cachebust=${cachebust}', request, 1)
+
+        request = re.sub('(?im)^Host: [a-zA-Z0-9-_.:]*', 'Host: ${host}${xfh}', request, 1)
+        if ('REFERER' in rawHeaders):
+            request = re.sub('(?im)^Referer: http[s]?://[a-zA-Z0-9-_.:]*', 'Referer: ${referer}', request, 1)
+
+        if ('CACHE-CONTROL' in rawHeaders):
+            request = re.sub('(?im)^Cache-Control: [^\r\n]+', 'Cache-Control: no-cache', request, 1)
+        else:
+            request = request.replace('Host: ${host}${xfh}', 'Host: ${host}${xfh}\r\nCache-Control: no-cache', 1)
+
+        referer = randstr(6)
+        request_template = Template(request)
+
+
+        # Send several requests with invalid host headers and observe whether they reach the target application, and whether the host header is reflected
+        legit = headers['HOST']
+        taint = randstr(6)
+        taint += '.' + legit
+        issues = []
+
+        # Host: evil.legit.com
+        (attack, resp) = self._attack(basePair, {'host': taint}, taint, request_template, referer)
+        if hit(resp, base_resp_print):
+
+            # flag DNS-rebinding if the page actually has content
+            if base_resp_print != '':
+                issues.append(self._raise(basePair, attack, 'dns'))
+
+            if taint in resp and referer not in resp:
+                issues.append(self._raise(basePair, attack, 'host'))
+                print issues
+                return issues
+        else:
+            # The application might not be the default VHost, so try an absolute URL:
+            #	GET http://legit.com/foo
+            #	Host: evil.com
+            (attack, resp) = self._attack(basePair, {'abshost': legit, 'host': taint}, taint, request_template, referer)
+            if hit(resp, base_resp_print) and taint in resp and referer not in resp:
+                issues.append(self._raise(basePair, attack, 'abs'))
+
+        # Host: legit.com
+        #	X-Forwarded-Host: evil.com
+        (attack, resp) = self._attack(basePair, {'host': legit, 'xfh': taint}, taint, request_template, referer)
+        if hit(resp, base_resp_print) and taint in resp and referer not in resp:
+            issues.append(self._raise(basePair, attack, 'xfh'))
+
+        return issues
+
+    def _raise(self, basePair, attack, type):
+        service = attack.getHttpService()
+        url = helpers.analyzeRequest(attack).getUrl()
+
+        if type == 'dns':
+            title = 'Arbitrary host header accepted'
+            sev = 'Low'
+            conf = 'Certain'
+            desc = """The application appears to be accessible using arbitrary HTTP Host headers. <br/><br/>
+
+                    This is a serious issue if the application is not externally accessible or uses IP-based access restrictions. Attackers can use DNS Rebinding to bypass any IP or firewall based access restrictions that may be in place, by proxying through their target's browser.<br/>
+                    Note that modern web browsers' use of DNS pinning does not effectively prevent this attack. The only effective mitigation is server-side: https://bugzilla.mozilla.org/show_bug.cgi?id=689835#c13<br/><br/>
+
+                    Additionally, it may be possible to directly bypass poorly implemented access restrictions by sending a Host header of 'localhost'"""
+        else:
+            title = 'Host header poisoning'
+            sev = 'Medium'
+            conf = 'Tentative'
+            desc = """The application appears to trust the user-supplied host header. By supplying a malicious host header with a password reset request, it may be possible to generate a poisoned password reset link. Consider testing the host header for classic server-side injection vulnerabilities.<br/>
+                    <br/>
+                    Depending on the configuration of the server and any intervening caching devices, it may also be possible to use this for cache poisoning attacks.<br/>
+                    <br/>
+                    Resources: <br/><ul>
+                        <li>http://carlos.bueno.org/2008/06/host-header-injection.html<br/></li>
+                        <li>http://www.skeletonscribe.net/2013/05/practical-http-host-header-attacks.html</li>
+                        </ul>
+            """
+
+        issue = CustomScanIssue(service, url, [basePair, attack], title, desc, conf, sev)
+        return issue
+
+    def _attack(self, basePair, payloads, taint, request_template, referer):
+        proto = helpers.analyzeRequest(basePair).getUrl().getProtocol() + '://'
+        if 'abshost' in payloads:
+            payloads['abshost'] = proto + payloads['abshost']
+        payloads['referer'] = proto + taint + '/' + referer
+        print "Host attack: " + str(payloads)
+
+        # Load the supplied payloads into the request
+        if 'xfh' in payloads:
+            payloads['xfh'] = "\r\nX-Forwarded-Host: " + payloads['xfh']
+
+        for key in ('xfh', 'abshost', 'host', 'referer'):
+            if key not in payloads:
+                payloads[key] = ''
+
+        # Ensure that the response to our request isn't cached - that could be harmful
+        payloads['cachebust'] = str(time.time())
+
+        request = request_template.substitute(payloads)
+
+        attack = callbacks.makeHttpRequest(basePair.getHttpService(), request)
+
+        response = helpers.bytesToString(attack.getResponse())
+
+        requestHighlights = [jarray.array([m.start(), m.end()], 'i') for m in
+                             re.finditer('(' + '|'.join(payloads.values()) + ')',
+                                         helpers.bytesToString(attack.getRequest()))]
+        responseHighlights = [jarray.array([m.start(), m.end()], 'i') for m in re.finditer(taint, response)]
+        attack = callbacks.applyMarkers(attack, requestHighlights, responseHighlights)
+        return attack, response
 
 
 
@@ -451,202 +592,6 @@ class CodeExec(IScannerCheck):
 
     def doPassiveScan(self, basePair):
         return []
-
-
-class HostAttack(IScannerInsertionPointProvider, IScannerCheck):
-    def __init__(self):
-        # self._helpers = callbacks.getHelpers()
-
-        self._referer = randstr(6)
-
-        # Load previously identified scanner issues to prevent duplicates
-        try:
-            self._rebind = map(lambda i: i.getAuthority(), getIssues('Arbitrary host header accepted'))
-        except Exception:
-            print "Initialisation callback failed. This extension requires burp suite professional and Jython 2.5."
-
-        self._poison = getIssues('Host header poisoning')
-
-    def getInsertionPoints(self, basePair):
-        rawHeaders = helpers.analyzeRequest(basePair.getRequest()).getHeaders()
-
-        # Parse the headers into a dictionary
-        headers = dict((header.split(': ')[0].upper(), header.split(': ', 1)[1]) for header in rawHeaders[1:])
-
-        # If the request doesn't use the host header, bail
-        if ('HOST' not in headers.keys()):
-            return None
-
-        response = helpers.bytesToString(basePair.getResponse())
-
-        # If the response doesn't reflect the host header we can't identify successful attacks
-        if (headers['HOST'] not in response):
-            print "Skipping host header attacks on this request as the host isn't reflected"
-            return None
-
-        return [HostInsertionPoint(helpers, basePair, headers)]
-
-    def doActiveScan(self, basePair, insertionPoint):
-
-        # Return if the insertion point isn't the right one
-        if (insertionPoint.getInsertionPointName() != "hosthacker"):
-            return []
-
-        # Return if we've already flagged both issues on this URL
-        url = helpers.analyzeRequest(basePair).getUrl()
-        host = url.getAuthority()
-        if (host in self._rebind and url in self._poison):
-            return []
-
-        # Send a baseline request to learn what the response should look like    
-        legit = insertionPoint.getBaseValue()
-        (attack, resp) = self._attack(basePair, insertionPoint, {'host': legit}, legit)
-        baseprint = tagmap(resp)
-
-        # Send several requests with invalid host headers and observe whether they reach the target application, and whether the host header is reflected
-        taint = randstr(6)
-        taint += '.' + legit
-        issues = []
-
-        # Host: evil.legit.com
-        (attack, resp) = self._attack(basePair, insertionPoint, {'host': taint}, taint)
-        if (hit(resp, baseprint)):
-
-            # flag DNS-rebinding if we haven't already, and the page actually has content
-            if (baseprint != '' and host not in self._rebind):
-                issues.append(self._raise(basePair, attack, host, 'dns'))
-
-            if (taint in resp and url not in self._poison and self._referer not in resp):
-                issues.append(self._raise(basePair, attack, host, 'host'))
-                return issues
-        else:
-            # The application might not be the default VHost, so try an absolute URL:
-            #	GET http://legit.com/foo
-            #	Host: evil.com
-            (attack, resp) = self._attack(basePair, insertionPoint, {'abshost': legit, 'host': taint}, taint)
-            if (hit(resp, baseprint) and taint in resp and url not in self._poison and self._referer not in resp):
-                issues.append(self._raise(basePair, attack, host, 'abs'))
-
-        # Host: legit.com
-        #	X-Forwarded-Host: evil.com
-        (attack, resp) = self._attack(basePair, insertionPoint, {'host': legit, 'xfh': taint}, taint)
-        if (hit(resp, baseprint) and taint in resp and url not in self._poison and self._referer not in resp):
-            issues.append(self._raise(basePair, attack, host, 'xfh'))
-
-        return issues
-
-    def _raise(self, basePair, attack, host, type):
-        service = attack.getHttpService()
-        url = helpers.analyzeRequest(attack).getUrl()
-
-        if (type == 'dns'):
-            title = 'Arbitrary host header accepted'
-            sev = 'Low'
-            conf = 'Certain'
-            desc = """The application appears to be accessible using arbitrary HTTP Host headers. <br/><br/>
-            
-                    This is a serious issue if the application is not externally accessible or uses IP-based access restrictions. Attackers can use DNS Rebinding to bypass any IP or firewall based access restrictions that may be in place, by proxying through their target's browser.<br/>
-                    Note that modern web browsers' use of DNS pinning does not effectively prevent this attack. The only effective mitigation is server-side: https://bugzilla.mozilla.org/show_bug.cgi?id=689835#c13<br/><br/>
-                    
-                    Additionally, it may be possible to directly bypass poorly implemented access restrictions by sending a Host header of 'localhost'"""
-            self._rebind.append(host)
-        else:
-            title = 'Host header poisoning'
-            sev = 'Medium'
-            conf = 'Tentative'
-            desc = """The application appears to trust the user-supplied host header. By supplying a malicious host header with a password reset request, it may be possible to generate a poisoned password reset link. Consider testing the host header for classic server-side injection vulnerabilities.<br/>
-                    <br/>
-                    Depending on the configuration of the server and any intervening caching devices, it may also be possible to use this for cache poisoning attacks.<br/>
-                    <br/>
-                    Resources: <br/><ul>
-                        <li>http://carlos.bueno.org/2008/06/host-header-injection.html<br/></li>
-                        <li>http://www.skeletonscribe.net/2013/05/practical-http-host-header-attacks.html</li>
-                        </ul>
-            """
-            self._poison.append(url)
-        issue = CustomScanIssue(service, url, [basePair, attack], title, desc, conf, sev)
-        return issue
-
-    def _attack(self, basePair, insertionPoint, payloads, taint):
-        proto = helpers.analyzeRequest(basePair).getUrl().getProtocol() + '://'
-        if ('abshost' in payloads):
-            payloads['abshost'] = proto + payloads['abshost']
-        payloads['referer'] = proto + taint + '/' + self._referer
-        print "Host attack: " + str(payloads)
-        attack = request(basePair, insertionPoint, 'hosthacker' + pickle.dumps(payloads))
-
-        response = helpers.bytesToString(attack.getResponse())
-        requestHighlights = [jarray.array([m.start(), m.end()], 'i') for m in
-                             re.finditer('(' + '|'.join(payloads.values()) + ')',
-                                         helpers.bytesToString(attack.getRequest()))]
-        responseHighlights = [jarray.array([m.start(), m.end()], 'i') for m in re.finditer(taint, response)]
-        attack = callbacks.applyMarkers(attack, requestHighlights, responseHighlights)
-        return (attack, response)
-
-    def doPassiveScan(self, basePair):
-        return []
-
-
-# Take input from HostAttack.doActiveScan() and use it to construct a HTTP request
-class HostInsertionPoint(IScannerInsertionPoint):
-    def __init__(self, helpers, basePair, rawHeaders):
-        # self._helpers = helpers
-        self._baseHost = rawHeaders['HOST']
-        request = helpers.bytesToString(basePair.getRequest())
-        request = request.replace('$', '\$')
-        request = request.replace('/', '$abshost/', 1)
-
-        # add a cachebust parameter
-        if ('?' in request[0:request.index('\n')]):
-            request = re.sub('(?i)([a-z]+ [^ ]+)', r'\1&cachebust=${cachebust}', request, 1)
-        else:
-            request = re.sub('(?i)([a-z]+ [^ ]+)', r'\1?cachebust=${cachebust}', request, 1)
-
-        request = re.sub('(?im)^Host: [a-zA-Z0-9-_.:]*', 'Host: ${host}${xfh}', request, 1)
-        if ('REFERER' in rawHeaders):
-            request = re.sub('(?im)^Referer: http[s]?://[a-zA-Z0-9-_.:]*', 'Referer: ${referer}', request, 1)
-
-        if ('CACHE-CONTROL' in rawHeaders):
-            request = re.sub('(?im)^Cache-Control: [^\r\n]+', 'Cache-Control: no-cache', request, 1)
-        else:
-            request = request.replace('Host: ${host}${xfh}', 'Host: ${host}${xfh}\r\nCache-Control: no-cache', 1)
-
-        self._requestTemplate = Template(request)
-
-    def getInsertionPointName(self):
-        return "hosthacker"
-
-    def getBaseValue(self):
-        return self._baseHost
-
-    def buildRequest(self, payload):
-
-        # Drop the attack if it didn't originate from my scanner
-        # This will cause an exception, no available workarounds at this time
-        payload = helpers.bytesToString(payload)
-        if (payload[:10] != 'hosthacker'):
-            return None
-
-        # Load the supplied payloads into the request
-        payloads = pickle.loads(payload[10:])
-        if 'xfh' in payloads:
-            payloads['xfh'] = "\r\nX-Forwarded-Host: " + payloads['xfh']
-
-        for key in ('xfh', 'abshost', 'host', 'referer'):
-            if key not in payloads:
-                payloads[key] = ''
-
-        # Ensure that the response to our request isn't cached - that could be harmful
-        payloads['cachebust'] = time.time()
-
-        request = self._requestTemplate.substitute(payloads)
-        return helpers.stringToBytes(request)
-
-    def getPayloadOffsets(self, payload):
-        return None
-
-    def getInsertionPointType(self):
-        return INS_EXTENSION_PROVIDED
 
 
 class GenericRequestInsertionPointProvider(IScannerInsertionPointProvider):
