@@ -28,7 +28,8 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-version = "1.0.13"
+VERSION = "1.0.14"
+FAST_MODE = True
 callbacks = None
 helpers = None
 
@@ -41,26 +42,69 @@ class BurpExtender(IBurpExtender):
 
         callbacks.setExtensionName("activeScan++")
 
-        # Register generic per-request insertion point provider
-        callbacks.registerScannerInsertionPointProvider(GenericRequestInsertionPointProvider())
+        callbacks.registerScannerCheck(Testz())
 
-        # Register host attack components
-        host = HostAttack()
-        callbacks.registerScannerInsertionPointProvider(host)
-        callbacks.registerScannerCheck(host)
+        if not FAST_MODE:
+            # Register generic per-request insertion point provider
+            callbacks.registerScannerInsertionPointProvider(GenericRequestInsertionPointProvider())
+            callbacks.registerScannerCheck(CodePath())
 
-        # Register other scan components
-        callbacks.registerScannerCheck(CodeExec())
-        callbacks.registerScannerCheck(SuspectTransform())
-        callbacks.registerScannerCheck(ObserveTransform())
-        callbacks.registerScannerCheck(JetLeak())
-        callbacks.registerScannerCheck(CodePath())
-        callbacks.registerScannerCheck(JSONP())
-        callbacks.registerScannerCheck(SimpleFuzz())
+            # Register host attack components
+            # host = HostAttack()
+            # callbacks.registerScannerInsertionPointProvider(host)
+            # callbacks.registerScannerCheck(host)
 
-        print "Successfully loaded activeScan++ v" + version
+            # Register other scan components
+            callbacks.registerScannerCheck(CodeExec())
+            callbacks.registerScannerCheck(SuspectTransform())
+            callbacks.registerScannerCheck(JetLeak())
+            callbacks.registerScannerCheck(JSONP())
+            callbacks.registerScannerCheck(SimpleFuzz())
+
+            callbacks.registerScannerCheck(ObserveTransform())
+
+        print "Successfully loaded activeScan++ v" + VERSION
 
         return
+
+class Testz(IScannerCheck):
+    def doPassiveScan(self, basePair):
+        return []
+
+    def doActiveScan(self, basePair, insertionPoint):
+        print insertionPoint.getInsertionPointName()
+        print self.should_trigger_per_request_attacks(basePair, insertionPoint)
+        print
+
+
+    def should_trigger_per_request_attacks(self, basePair, insertionPoint):
+        insertion_point_type = insertionPoint.getInsertionPointType()
+        insertion_point_name = insertionPoint.getInsertionPointName()
+        request = helpers.analyzeRequest(basePair.getRequest())
+        params = request.getParameters()
+
+
+        # pick the parameter most likely to be the first insertion point
+        first_parameter_offset= 999999
+        first_parameter = None
+        for param_type in (IParameter.PARAM_BODY, IParameter.PARAM_URL, IParameter.PARAM_JSON, IParameter.PARAM_XML, IParameter.PARAM_XML_ATTR, IParameter.PARAM_MULTIPART_ATTR, IParameter.PARAM_COOKIE):
+            for param in params:
+                if param.getType() != param_type:
+                    continue
+                if param.getNameStart() < first_parameter_offset:
+                    first_parameter_offset = param.getNameStart()
+                    first_parameter = param
+            if first_parameter:
+                break
+
+        if first_parameter.getName() == insertionPoint.getInsertionPointName():
+            return True
+
+        else:
+            return False
+
+
+
 
 
 class JSONP(IScannerCheck):
@@ -568,7 +612,6 @@ class HostInsertionPoint(IScannerInsertionPoint):
             request = request.replace('Host: ${host}${xfh}', 'Host: ${host}${xfh}\r\nCache-Control: no-cache', 1)
 
         self._requestTemplate = Template(request)
-        return None
 
     def getInsertionPointName(self):
         return "hosthacker"
