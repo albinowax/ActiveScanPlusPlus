@@ -38,6 +38,12 @@ The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request 
     
     
 #### Changelog:
+
+**1.0.13 20160120**
+  - Harvest additional information on backslash-consumption vulnerabilities
+  - Fix bug that reduced efficiency by creating useless insertion points
+  - Fix bug that caused passive scanner issues to appear on HTTP instead of HTTPS
+  
 **1.0.12 - 20151118**
   - Trigger a fresh passive scan when an alternative code path is identified (combines well with the 'Error Message Checks' extension)
   

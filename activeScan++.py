@@ -28,8 +28,8 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.14"
-FAST_MODE = True
+VERSION = "1.0.13"
+FAST_MODE = False
 callbacks = None
 helpers = None
 
@@ -46,8 +46,8 @@ class BurpExtender(IBurpExtender):
 
         if not FAST_MODE:
             # Register generic per-request insertion point provider
-            callbacks.registerScannerInsertionPointProvider(GenericRequestInsertionPointProvider())
-            callbacks.registerScannerCheck(CodePath())
+            # callbacks.registerScannerInsertionPointProvider(GenericRequestInsertionPointProvider())
+            # callbacks.registerScannerCheck(CodePath())
 
             # Register host attack components
             # host = HostAttack()
@@ -78,7 +78,8 @@ class PerRequestScan(IScannerCheck):
 
         base_resp_string = helpers.bytesToString(basePair.getResponse())
         base_resp_print = tagmap(base_resp_string)
-        self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
+        issues = self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
+        return issues
 
 
     def should_trigger_per_request_attacks(self, basePair, insertionPoint):
@@ -218,7 +219,6 @@ class PerRequestScan(IScannerCheck):
         if 'abshost' in payloads:
             payloads['abshost'] = proto + payloads['abshost']
         payloads['referer'] = proto + taint + '/' + referer
-        print "Host attack: " + str(payloads)
 
         # Load the supplied payloads into the request
         if 'xfh' in payloads:
@@ -494,7 +494,7 @@ class CodeExec(IScannerCheck):
             'any': ['() { :;}; /bin/sleep $time',
                     '() { _; } >_[$$($$())] { /bin/sleep $time; }', '$$(sleep $time)', '`sleep $time`'],
             'php': [],
-            'perl': [],
+            'perl': ['/bin/sleep $time|'],
             'ruby': ['|sleep $time & ping -n $time localhost'],
             # Expression language injection
             'java': [
@@ -672,7 +672,7 @@ class CustomScanIssue(IScanIssue):
 
 def launchPassiveScan(attack):
     service = attack.getHttpService()
-    using_https = service.getProtocol == 'http'
+    using_https = service.getProtocol() == 'http'
     callbacks.doPassiveScan(service.getHost(), service.getPort(), using_https, attack.getRequest(),
                             attack.getResponse())
     return
