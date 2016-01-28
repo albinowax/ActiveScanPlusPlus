@@ -4,14 +4,13 @@ ActiveScan++
 ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Designed to add minimal network overhead, it identifies application behaviour that may be of interest to advanced testers:
 
   - Potential host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
-  - JSONP usage
   - XML input handling
-  - Suspicious input transformation (eg 7*7 => '49', \x41\x41 => 'AA')
+  - Suspicious input transformation (eg 7*7 => '49', \x41\x41 => 'AA', \\\\ => '\' )
   - Passive-scanner issues that only occur during fuzzing (install the 'Error Message Checks' extension for maximum effectiveness)
 
 It also adds checks for the following issues:
 
-  - Blind code injection via expression language, Ruby's open()
+  - Blind code injection via expression language, Ruby's open() and Perl's open()
   - CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080
   
 #### Requirements:
@@ -30,18 +29,17 @@ Jython 2.5 or later standalone: http://www.jython.org/downloads.html
 8. Done!
 
 #### Usage notes:
-To invoke these checks, just run a normal active scan. The JSONP check is part of the passive scanner and always active.
+To invoke these checks, just run a normal active scan.
 
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
-
-The extension's 'Errors' tab may print 'java.lang.NullPointerException: Request cannot be null.' during active scans. This is a currently unavoidable side effect of the host header attacks, and has no actual impact on the scanner's effectiveness.
-    
     
 #### Changelog:
 
 **1.0.13 20160120**
   - Harvest additional information on backslash-consumption vulnerabilities
+  - Detect shell command injection via Perl open() calls
   - Fix bug that reduced efficiency by creating useless insertion points
+  - Sadly remove the 'NullPointerException' feature
   - Fix bug that caused passive scanner issues to appear on HTTP instead of HTTPS
   
 **1.0.12 - 20151118**
