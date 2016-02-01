@@ -495,12 +495,12 @@ class CodeExec(IScannerCheck):
         for payload in payloads:
             if (baseTime == 0):
                 baseTime = self._attack(basePair, insertionPoint, payload, 0)[0]
-            if (self._attack(basePair, insertionPoint, payload, 11)[0] > baseTime + 6):
+            if self._attack(basePair, insertionPoint, payload, 11)[0] > max(baseTime + 6, 10):
                 debug_msg("Suspicious delay detected. Confirming it's consistent...")
                 (dummyTime, dummyAttack) = self._attack(basePair, insertionPoint, payload, 0)
                 if (dummyTime < baseTime + 4):
                     (timer, attack) = self._attack(basePair, insertionPoint, payload, 11)
-                    if (timer > dummyTime + 6):
+                    if timer > max(dummyTime + 6, 10):
                         debug_msg("Code execution confirmed")
                         url = helpers.analyzeRequest(attack).getUrl()
                         if (url in self._done):
