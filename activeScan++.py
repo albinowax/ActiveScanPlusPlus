@@ -49,7 +49,6 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SuspectTransform())
             callbacks.registerScannerCheck(JetLeak())
             callbacks.registerScannerCheck(SimpleFuzz())
-            callbacks.registerScannerCheck(ObserveTransform())
 
         print "Successfully loaded activeScan++ v" + VERSION
 
@@ -117,7 +116,10 @@ class PerRequestScans(IScannerCheck):
         if not modified:
             return -1, None
         result = callbacks.makeHttpRequest(basePair.getHttpService(), request)
-        return tagmap(helpers.bytesToString(result.getResponse())), result
+        resp = result.getResponse()
+        if resp is None:
+            resp = ''
+        return tagmap(helpers.bytesToString(resp)), result
 
     def consolidateDuplicateIssues(self, existingIssue, newIssue):
         return is_same_issue(existingIssue, newIssue)
@@ -303,7 +305,6 @@ class SuspectTransform(IScannerCheck):
         probe, expect = self.detect_arithmetic(base)
         return '%{' + probe + '}', expect
 
-    # FIXME sending every payload twice
     def doActiveScan(self, basePair, insertionPoint):
         base = insertionPoint.getBaseValue()
         initial_response = helpers.bytesToString(basePair.getResponse())
@@ -347,79 +348,12 @@ class SuspectTransform(IScannerCheck):
         return is_same_issue(existingIssue, newIssue)
 
 
-class ObserveTransform(IScannerCheck):
-
-    def detect_backslash_consumption(self):
-        return anchor_change("\\\\z", ["\\z"])
-
-    def examine_backslash_handling(self):
-        left = randstr(4)
-        right = randstr(4)
-        probe = left + '\\70z' + right
-        expect = [left + 'pz' + right, left+'8z'+right]  # hex, octal
-        return probe, expect
-
-    def examine_slashx_handling(self):
-        expect = randstr(8)
-        probe = '\\x' + '\\x'.join([str(hex(ord(c)))[2:] for c in expect])
-        return probe, [expect]
-
-    def examine_null_handling(self):
-        return anchor_change("\\0z", ["\x00z"])
-
-    def check(self, basePair, insertionPoint, initial_response, probe, expectations):
-
-        attack = request(basePair, insertionPoint, probe)
-        attack_response = helpers.bytesToString(attack.getResponse())
-        seen = []
-        for expect in expectations:
-            debug_msg('Trying ' + probe + ' to ' + expect)
-            if expect in attack_response and expect not in initial_response:
-                seen.append(expect)
-        if not seen:
-            return None
-        return probe, seen, attack
-
-    def doActiveScan(self, basePair, insertionPoint):
-
-        initial_response = helpers.bytesToString(basePair.getResponse())
-
-        results = [self.check(basePair, insertionPoint, initial_response, *self.detect_backslash_consumption())]
-
-        if results[0] is None:
-            return []
-
-        results.append(self.check(basePair, insertionPoint, initial_response, *self.examine_backslash_handling()))
-        results.append(self.check(basePair, insertionPoint, initial_response, *self.examine_slashx_handling()))
-        results.append(self.check(basePair, insertionPoint, initial_response, *self.examine_null_handling()))
-
-        requests = []
-        detail = ''
-        for result_set in results:
-            if result_set is None:
-                continue
-            for output in result_set[1]:
-                detail += '<li> From <b><code>'+result_set[0] + '</code></b> to <b><code>' + output + '</code></b></li>'
-            requests.append(result_set[2])
-
-        return [CustomScanIssue(results[0][2].getHttpService(), helpers.analyzeRequest(results[0][2]).getUrl(), requests,
-                                                'Suspicious input decoding',
-                                                "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
-                                                "The following transformations were observed:<ul>" + detail +
-                                                "</ul><br/><br/>Manual investigation is advised.", 'Tentative', 'High')]
-
-    def doPassiveScan(self, basePair):
-        return []
-
-    def consolidateDuplicateIssues(self, existingIssue, newIssue):
-        return is_same_issue(existingIssue, newIssue)
-
 # Detect CVE-2015-2080
 # Technique based on https://github.com/GDSSecurity/Jetleak-Testing-Script/blob/master/jetleak_tester.py
 class JetLeak(IScannerCheck):
     def doActiveScan(self, basePair, insertionPoint):
         if 'Referer' != insertionPoint.getInsertionPointName():
-            return None
+            return []
         attack = request(basePair, insertionPoint, "\x00")
         resp_start = helpers.bytesToString(attack.getResponse())[:90]
         if '400 Illegal character 0x0 in state' in resp_start and '<<<' in resp_start:
@@ -428,7 +362,7 @@ class JetLeak(IScannerCheck):
                                     "The application appears to be running a version of Jetty vulnerable to CVE-2015-2080, which allows attackers to read out private server memory<br/>"
                                     "Please refer to http://blog.gdssecurity.com/labs/2015/2/25/jetleak-vulnerability-remote-leakage-of-shared-buffers-in-je.html for further information",
                                     'Firm', 'High')]
-        return None
+        return []
 
     def doPassiveScan(self, basePair):
         return []
@@ -512,7 +446,7 @@ class CodeExec(IScannerCheck):
                                                     dummyTime) + "</b> seconds was observed. <br/>It was then instructed to sleep for 10 seconds, which resulted in a response time of <b>" + str(
                                                     timer) + "</b> seconds", 'Firm', 'High')]
 
-        return None
+        return []
 
     def _getLangs(self, basePair):
         path = helpers.analyzeRequest(basePair).getUrl().getPath()

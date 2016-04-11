@@ -5,7 +5,7 @@ ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Desi
 
   - Potential host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
   - XML input handling
-  - Suspicious input transformation (eg 7*7 => '49', \x41\x41 => 'AA', \\\\ => '\\' )
+  - Suspicious input transformation (eg 7*7 => '49', \\\\ => '\\' )
   - Passive-scanner issues that only occur during fuzzing (install the 'Error Message Checks' extension for maximum effectiveness)
 
 It also adds checks for the following issues:
@@ -35,8 +35,7 @@ The host header checks tamper with the host header, which may result in requests
     
 #### Changelog:
 
-**1.0.13 20160201**
-  - Harvest additional information on backslash-consumption vulnerabilities
+**1.0.13 20160411**
   - Detect shell command injection via Perl open() calls
   - Fix bug that reduced efficiency by creating useless insertion points
   - Sadly remove the 'NullPointerException' feature
