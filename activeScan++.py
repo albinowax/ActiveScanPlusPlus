@@ -34,6 +34,10 @@ DEBUG = False
 callbacks = None
 helpers = None
 
+def safe_bytes_to_string(bytes):
+    if bytes is None:
+        bytes = ''
+    return helpers.bytesToString(bytes)
 
 class BurpExtender(IBurpExtender):
     def registerExtenderCallbacks(self, this_callbacks):
@@ -63,7 +67,7 @@ class PerRequestScans(IScannerCheck):
         if not self.should_trigger_per_request_attacks(basePair, insertionPoint):
             return []
 
-        base_resp_string = helpers.bytesToString(basePair.getResponse())
+        base_resp_string = safe_bytes_to_string(basePair.getResponse())
         base_resp_print = tagmap(base_resp_string)
         issues = self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
         issues.extend(self.doCodePathScan(basePair, base_resp_print))
@@ -119,7 +123,7 @@ class PerRequestScans(IScannerCheck):
         resp = result.getResponse()
         if resp is None:
             resp = ''
-        return tagmap(helpers.bytesToString(resp)), result
+        return tagmap(safe_bytes_to_string(resp)), result
 
     def consolidateDuplicateIssues(self, existingIssue, newIssue):
         return is_same_issue(existingIssue, newIssue)
@@ -142,7 +146,7 @@ class PerRequestScans(IScannerCheck):
             return []
 
         # prepare the attack
-        request = helpers.bytesToString(basePair.getRequest())
+        request = safe_bytes_to_string(basePair.getRequest())
         request = request.replace('$', '\$')
         request = request.replace('/', '$abshost/', 1)
 
@@ -250,11 +254,11 @@ class PerRequestScans(IScannerCheck):
 
         attack = callbacks.makeHttpRequest(basePair.getHttpService(), request)
 
-        response = helpers.bytesToString(attack.getResponse())
+        response = safe_bytes_to_string(attack.getResponse())
 
         requestHighlights = [jarray.array([m.start(), m.end()], 'i') for m in
                              re.finditer('(' + '|'.join(payloads.values()) + ')',
-                                         helpers.bytesToString(attack.getRequest()))]
+                                         safe_bytes_to_string(attack.getRequest()))]
         responseHighlights = [jarray.array([m.start(), m.end()], 'i') for m in re.finditer(taint, response)]
         attack = callbacks.applyMarkers(attack, requestHighlights, responseHighlights)
         return attack, response
@@ -265,7 +269,7 @@ class PerRequestScans(IScannerCheck):
 class SimpleFuzz(IScannerCheck):
     def doActiveScan(self, basePair, insertionPoint):
         attack = request(basePair, insertionPoint, 'a\'a\\\'b"c>?>%}}%%>c<[[?${{%}}cake\\')
-        if tagmap(helpers.bytesToString(attack.getResponse())) != tagmap(helpers.bytesToString(basePair.getResponse())):
+        if tagmap(safe_bytes_to_string(attack.getResponse())) != tagmap(safe_bytes_to_string(basePair.getResponse())):
             launchPassiveScan(attack)
 
         return []
@@ -307,7 +311,7 @@ class SuspectTransform(IScannerCheck):
 
     def doActiveScan(self, basePair, insertionPoint):
         base = insertionPoint.getBaseValue()
-        initial_response = helpers.bytesToString(basePair.getResponse())
+        initial_response = safe_bytes_to_string(basePair.getResponse())
         issues = []
         checks = copy.copy(self.checks)
         while checks:
@@ -319,7 +323,7 @@ class SuspectTransform(IScannerCheck):
 
                 debug_msg("Trying " + probe)
                 attack = request(basePair, insertionPoint, probe)
-                attack_response = helpers.bytesToString(attack.getResponse())
+                attack_response = safe_bytes_to_string(attack.getResponse())
 
                 matched = False
                 for e in expect:
@@ -355,7 +359,7 @@ class JetLeak(IScannerCheck):
         if 'Referer' != insertionPoint.getInsertionPointName():
             return []
         attack = request(basePair, insertionPoint, "\x00")
-        resp_start = helpers.bytesToString(attack.getResponse())[:90]
+        resp_start = safe_bytes_to_string(attack.getResponse())[:90]
         if '400 Illegal character 0x0 in state' in resp_start and '<<<' in resp_start:
             return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
                                     'CVE-2015-2080 (JetLeak)',
@@ -620,7 +624,7 @@ def setHeader(request, name, value):
     body_start = i
 
     # walk over the headers and change as appropriate
-    headers = helpers.bytesToString(request[0:body_start])
+    headers = safe_bytes_to_string(request[0:body_start])
     headers = headers.splitlines()
     modified = False
     for (i, header) in enumerate(headers):
