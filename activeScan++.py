@@ -436,6 +436,11 @@ class CodeExec(IScannerCheck):
             if self._attack(basePair, insertionPoint, payload, 11)[0] > max(baseTime + 6, 10):
                 debug_msg("Suspicious delay detected. Confirming it's consistent...")
                 (dummyTime, dummyAttack) = self._attack(basePair, insertionPoint, payload, 0)
+
+                if dummyAttack.getResponse() is None:
+                    debug_msg('Received empty response to baseline request - abandoning attack')
+                    break
+
                 if (dummyTime < baseTime + 4):
                     (timer, attack) = self._attack(basePair, insertionPoint, payload, 11)
                     if timer > max(dummyTime + 6, 10):
@@ -539,6 +544,8 @@ class CustomScanIssue(IScanIssue):
 # misc utility methods
 
 def launchPassiveScan(attack):
+    if attack.getResponse() is None:
+        return
     service = attack.getHttpService()
     using_https = service.getProtocol() == 'https'
     callbacks.doPassiveScan(service.getHost(), service.getPort(), using_https, attack.getRequest(),
