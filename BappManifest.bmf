@@ -1,0 +1,10 @@
+Uuid: 3123d5b5f25c4128894d97ea1acc4976
+ExtensionType: 2
+Name: Active Scan++
+ScreenVersion: 1.0.13
+SerialVersion: 9
+MinPlatformVersion: 0
+ProOnly: True
+Author: James Kettle
+ShortDescription: Extends Burp's active and passive scanning capabilities.
+EntryPoint: activeScan++.py
