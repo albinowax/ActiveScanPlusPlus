@@ -79,25 +79,28 @@ class PerRequestScans(IScannerCheck):
         request = helpers.analyzeRequest(basePair.getRequest())
         params = request.getParameters()
 
+        # if there are no parameters, scan if there's a HTTP header
+        if params:
+            # pick the parameter most likely to be the first insertion point
+            first_parameter_offset = 999999
+            first_parameter = None
+            for param_type in (IParameter.PARAM_BODY, IParameter.PARAM_URL, IParameter.PARAM_JSON, IParameter.PARAM_XML, IParameter.PARAM_XML_ATTR, IParameter.PARAM_MULTIPART_ATTR, IParameter.PARAM_COOKIE):
+                for param in params:
+                    if param.getType() != param_type:
+                        continue
+                    if param.getNameStart() < first_parameter_offset:
+                        first_parameter_offset = param.getNameStart()
+                        first_parameter = param
+                if first_parameter:
+                    break
 
-        # pick the parameter most likely to be the first insertion point
-        first_parameter_offset = 999999
-        first_parameter = None
-        for param_type in (IParameter.PARAM_BODY, IParameter.PARAM_URL, IParameter.PARAM_JSON, IParameter.PARAM_XML, IParameter.PARAM_XML_ATTR, IParameter.PARAM_MULTIPART_ATTR, IParameter.PARAM_COOKIE):
-            for param in params:
-                if param.getType() != param_type:
-                    continue
-                if param.getNameStart() < first_parameter_offset:
-                    first_parameter_offset = param.getNameStart()
-                    first_parameter = param
-            if first_parameter:
-                break
+            if first_parameter and first_parameter.getName() == insertionPoint.getInsertionPointName():
+                return True
 
-        if first_parameter and first_parameter.getName() == insertionPoint.getInsertionPointName():
+        elif insertionPoint.getInsertionPointType() == IScannerInsertionPoint.INS_HEADER and insertionPoint.getInsertionPointName() == 'User-Agent':
             return True
 
-        else:
-            return False
+        return False
 
     def doStrutsScan(self, basePair):
 
