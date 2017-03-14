@@ -34,6 +34,8 @@ To invoke these checks, just run a normal active scan.
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
     
 #### Changelog:
+**1.0.14 20170309**
+  - Detect the latest Struts2 RCE - CVE-2017-5638 / S2-045
 
 **1.0.13 20160411**
   - Detect shell command injection via Perl open() calls
