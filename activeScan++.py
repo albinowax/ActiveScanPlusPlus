@@ -49,10 +49,10 @@ class BurpExtender(IBurpExtender):
         callbacks.registerScannerCheck(PerRequestScans())
 
         if not FAST_MODE:
-            callbacks.registerScannerCheck(CodeExec())
-            callbacks.registerScannerCheck(SuspectTransform())
-            callbacks.registerScannerCheck(JetLeak())
-            callbacks.registerScannerCheck(SimpleFuzz())
+            #callbacks.registerScannerCheck(CodeExec())
+            #callbacks.registerScannerCheck(SuspectTransform())
+            #callbacks.registerScannerCheck(JetLeak())
+            #callbacks.registerScannerCheck(SimpleFuzz())
             callbacks.registerScannerCheck(Solr())
 
         print "Successfully loaded activeScan++ v" + VERSION
@@ -379,7 +379,7 @@ class SuspectTransform(IScannerCheck):
 class Solr(IScannerCheck):
     def doActiveScan(self, basePair, insertionPoint):
         collab = callbacks.createBurpCollaboratorClientContext()
-        obfuscated_payload = "{!xmlparser v='<!DOCTYPE a SYSTEM \"http://"+collab.generatePayload(True).replace(".", "&#x2e;")+"/\"'><a></a>'}"
+        obfuscated_payload = "{!xmlparser v='<!DOCTYPE a SYSTEM \"http://"+collab.generatePayload(True).replace(".", "&#x2e;")+"/\"><a></a>'}"
         attack = request(basePair, insertionPoint, obfuscated_payload)
         interactions = collab.fetchAllCollaboratorInteractions()
         if interactions:
@@ -391,7 +391,11 @@ class Solr(IScannerCheck):
 
         return []
 
+    def doPassiveScan(self, basePair):
+        return []
 
+    def consolidateDuplicateIssues(self, existingIssue, newIssue):
+        return is_same_issue(existingIssue, newIssue)
 
 # Detect CVE-2015-2080
 # Technique based on https://github.com/GDSSecurity/Jetleak-Testing-Script/blob/master/jetleak_tester.py
