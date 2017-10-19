@@ -49,10 +49,10 @@ class BurpExtender(IBurpExtender):
         callbacks.registerScannerCheck(PerRequestScans())
 
         if not FAST_MODE:
-            #callbacks.registerScannerCheck(CodeExec())
-            #callbacks.registerScannerCheck(SuspectTransform())
-            #callbacks.registerScannerCheck(JetLeak())
-            #callbacks.registerScannerCheck(SimpleFuzz())
+            callbacks.registerScannerCheck(CodeExec())
+            callbacks.registerScannerCheck(SuspectTransform())
+            callbacks.registerScannerCheck(JetLeak())
+            callbacks.registerScannerCheck(SimpleFuzz())
             callbacks.registerScannerCheck(Solr())
 
         print "Successfully loaded activeScan++ v" + VERSION
