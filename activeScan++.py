@@ -19,6 +19,8 @@ try:
     import string
     import time
     import copy
+    import base64
+    import jarray
     from string import Template
     from cgi import escape
 
@@ -47,6 +49,7 @@ class BurpExtender(IBurpExtender):
         callbacks.setExtensionName("activeScan++")
 
         callbacks.registerScannerCheck(PerRequestScans())
+        callbacks.registerScannerInsertionPointProvider(BasicAuthInsertionPointProvider(callbacks))
 
         if not FAST_MODE:
             callbacks.registerScannerCheck(CodeExec())
@@ -584,6 +587,54 @@ class CustomScanIssue(IScanIssue):
 
     def getHttpService(self):
         return self.HttpService
+
+
+class BasicAuthInsertionPointProvider(IScannerInsertionPointProvider):
+    def __init__(self, callbacks):
+        self.callbacks = callbacks
+        self.doneHosts = set()
+
+    def getInsertionPoints(self, baseRequestResponse):
+        request = baseRequestResponse.getRequest()
+        requestInfo = self.callbacks.getHelpers().analyzeRequest(baseRequestResponse.getHttpService(), request)
+        for header in requestInfo.getHeaders():
+            if header.startswith("Authorization: Basic "):
+                host = requestInfo.getUrl().getHost() + ":" + str(requestInfo.getUrl().getPort())
+                if host in self.doneHosts:
+                    return []
+                else:
+                    self.doneHosts.add(host)
+                    return [BasicAuthInsertionPoint(request, 0), BasicAuthInsertionPoint(request, 1)]
+
+
+class BasicAuthInsertionPoint(IScannerInsertionPoint):
+    def __init__(self, baseRequest, position):
+        self.baseRequest = ''.join(map(chr, baseRequest))
+        self.position = position
+        match = re.search("^Authorization: Basic (.*)$", self.baseRequest, re.MULTILINE)
+        self.baseBlob = match.group(1)
+        self.baseValues = base64.b64decode(self.baseBlob).split(':')
+        self.baseOffset = self.baseRequest.index(self.baseBlob)
+
+    def getInsertionPointName(self):
+        return "BasicAuth" + ("UserName" if self.position == 0 else "Password")
+
+    def getBaseValue(self):
+        return self.baseValues[self.position]
+
+    def makeBlob(self, payload):
+        values = list(self.baseValues)
+        values[self.position] = ''.join(map(chr, payload))
+        return base64.b64encode(':'.join(values))
+
+    def buildRequest(self, payload):
+        return self.baseRequest.replace(self.baseBlob, self.makeBlob(payload))
+
+    def getPayloadOffsets(self, payload):
+        return jarray.array([self.baseOffset, self.baseOffset + len(self.makeBlob(payload))], 'i')
+
+    def getInsertionPointType(self):
+        return IScannerInsertionPoint.INS_EXTENSION_PROVIDED
 
 
 # misc utility methods
