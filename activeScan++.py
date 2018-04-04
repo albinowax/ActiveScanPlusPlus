@@ -41,6 +41,9 @@ def safe_bytes_to_string(bytes):
         bytes = ''
     return helpers.bytesToString(bytes)
 
+def html_encode(string):
+    return string.replace("<", "&lt;").replace(">", "&gt;")
+
 class BurpExtender(IBurpExtender):
     def registerExtenderCallbacks(self, this_callbacks):
         global callbacks, helpers
@@ -57,6 +60,7 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(JetLeak())
             callbacks.registerScannerCheck(SimpleFuzz())
             callbacks.registerScannerCheck(Solr())
+            callbacks.registerScannerCheck(EdgeSideInclude())
 
         print "Successfully loaded activeScan++ v" + VERSION
 
@@ -303,6 +307,28 @@ class SimpleFuzz(IScannerCheck):
 
     def doPassiveScan(self, basePair):
         return []
+
+
+class EdgeSideInclude(IScannerCheck):
+    def doPassiveScan(self, basePair):
+        return []
+
+    def doActiveScan(self, basePair, insertionPoint):
+        canary1 = randstr(4)
+        canary2 = randstr(4)
+        canary3 = randstr(4)
+        probe = canary1+"<!--esi-->"+canary2+"<!--esx-->"+canary3
+        attack = request(basePair, insertionPoint, probe)
+        expect = canary1+canary2+"<!--esx-->"+canary3
+        if expect in safe_bytes_to_string(attack.getResponse()):
+            return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                                            'Edge Side Include' ,
+                                            "The application appears to support Edge Side Includes:<br/><br/> "
+                                            "The following probe was sent: <b>" + html_encode(probe) +
+                                            "</b><br/>In the response, the ESI comment has been stripped: <b>" + html_encode(expect) +
+                                            "</b><br/><br/>Refer to https://gosecure.net/2018/04/03/beyond-xss-edge-side-include-injection/ for further information", 'Tentative', 'High')]
+        return []
+
 
 
 # Detect suspicious input transformations
