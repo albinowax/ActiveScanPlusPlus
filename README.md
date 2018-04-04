@@ -4,6 +4,7 @@ ActiveScan++
 ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Designed to add minimal network overhead, it identifies application behaviour that may be of interest to advanced testers:
 
   - Potential host header attacks (password reset poisoning, cache poisoning, DNS rebinding)
+  - Edge Side Includes
   - XML input handling
   - Suspicious input transformation (eg 7*7 => '49', \\\\ => '\\' )
   - Passive-scanner issues that only occur during fuzzing (install the 'Error Message Checks' extension for maximum effectiveness)
@@ -34,6 +35,9 @@ To invoke these checks, just run a normal active scan.
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
     
 #### Changelog:
+**1.0.16 20180404**
+  - Detect Edge Side Includes
+
 **1.0.15 20171026**
   - Detect RCE via Solr/Lucene injection using XXE - [CVE-2017-12629](https://mail-archives.apache.org/mod_mbox/lucene-dev/201710.mbox/%3CCAJEmKoC%2BeQdP-E6BKBVDaR_43fRs1A-hOLO3JYuemmUcr1R%2BTA%40mail.gmail.com%3E)
 
