@@ -28,7 +28,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.16"
+VERSION = "1.0.17"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -49,6 +49,7 @@ class BurpExtender(IBurpExtender):
         helpers = callbacks.getHelpers()
         callbacks.setExtensionName("activeScan++")
 
+        callbacks.registerScannerCheck(PerHostScans())
         callbacks.registerScannerCheck(PerRequestScans())
 
         if not FAST_MODE:
@@ -62,6 +63,59 @@ class BurpExtender(IBurpExtender):
         print "Successfully loaded activeScan++ v" + VERSION
 
         return
+
+
+class PerHostScans(IScannerCheck):
+    scanned_hosts = set()
+
+    def doPassiveScan(self, basePair):
+        return []
+
+    def doActiveScan(self, basePair, insertionPoint):
+        host = basePair.getHttpService().getHost()
+        if host in self.scanned_hosts:
+            return []
+
+        self.scanned_hosts.add(host)
+        issues = []
+        issues.extend(self.interestingFileScan(basePair))
+        return issues
+
+
+    interestingFileMappings = {
+        # relative_url: vulnerable_response_content
+
+        '/.git/config': '[core]',
+        '/server-status': 'Server uptime',
+    }
+
+
+    def interestingFileScan(self, basePair):
+        issues = []
+        for url, expect in self.interestingFileMappings.items():
+            attack = self.fetchURL(basePair, url)
+            if expect in safe_bytes_to_string(attack.getResponse()):
+
+                # prevent false positives by tweaking the URL and confirming the expected string goes away
+                baseline = self.fetchURL(basePair, url[:-1])
+                if expect not in safe_bytes_to_string(baseline.getResponse()):
+                    issues.append(
+                        CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(attack).getUrl(),
+                                        [attack, baseline],
+                                        'Interesting response',
+                                        "The response to <b>"+html_encode(url)+"</b> contains <b>'"+html_encode(expect)+"'</b><br/><br/>This may be interesting.",
+                                        'Firm', 'High')
+                    )
+
+
+        return issues
+
+
+    def fetchURL(self, basePair, url):
+        path = helpers.analyzeRequest(basePair).getUrl().getPath()
+        newReq = safe_bytes_to_string(basePair.getRequest()).replace(path, url, 1)
+        return callbacks.makeHttpRequest(basePair.getHttpService(), newReq)
+
 
 
 class PerRequestScans(IScannerCheck):
@@ -316,8 +370,10 @@ class EdgeSideInclude(IScannerCheck):
         canary3 = randstr(4)
         probe = canary1+"<!--esi-->"+canary2+"<!--esx-->"+canary3
         attack = request(basePair, insertionPoint, probe)
+        resp = safe_bytes_to_string(attack.getResponse())
+
         expect = canary1+canary2+"<!--esx-->"+canary3
-        if expect in safe_bytes_to_string(attack.getResponse()):
+        if expect in resp:
             return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
                                             'Edge Side Include' ,
                                             "The application appears to support Edge Side Includes:<br/><br/> "
