@@ -49,6 +49,11 @@ class BurpExtender(IBurpExtender):
         helpers = callbacks.getHelpers()
         callbacks.setExtensionName("activeScan++")
 
+        #gracefully skip checks requiring Collaborator if it's disabled
+        collab_options = callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
+        if '"type":"none"' in collab_options:
+            debug_msg("Collaborator not enabled; skipping checks that require it")
+        
         callbacks.registerScannerCheck(PerHostScans())
         callbacks.registerScannerCheck(PerRequestScans())
 
@@ -57,7 +62,7 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SuspectTransform())
             callbacks.registerScannerCheck(JetLeak())
             callbacks.registerScannerCheck(SimpleFuzz())
-            callbacks.registerScannerCheck(Solr())
+            if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(Solr())
             callbacks.registerScannerCheck(EdgeSideInclude())
 
         print "Successfully loaded activeScan++ v" + VERSION
