@@ -188,8 +188,8 @@ class PerRequestScans(IScannerCheck):
 
 
 # Based on exploit at https://github.com/chrisjd20/cve-2017-9805.py
-# Tested against https://dev.northpolewonderland.com (SANS Holiday Hack Challenge 2017)
-# Tested against https://pentesterlab.com/exercises/s2-052
+# Tested against https://dev.northpolechristmastown.com/orders.xhtml (SANS Holiday Hack Challenge 2017)
+# Tested against system at https://pentesterlab.com/exercises/s2-052
     def doStruts_2017_9805_Scan(self, basePair):
         global callbacks, helpers
 
