@@ -31,7 +31,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.17"
+VERSION = "1.0.18"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
