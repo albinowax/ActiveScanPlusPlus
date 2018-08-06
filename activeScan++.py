@@ -19,6 +19,7 @@ try:
     import string
     import time
     import copy
+    import traceback
     from string import Template
     from cgi import escape
 
@@ -53,7 +54,7 @@ class BurpExtender(IBurpExtender):
         collab_enabled = True
         if '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server"):
             collab_enabled = False
-            debug_msg("Collaborator not enabled; skipping checks that require it")
+            print "Collaborator not enabled; skipping checks that require it"
         
         callbacks.registerScannerCheck(PerHostScans())
         callbacks.registerScannerCheck(PerRequestScans())
@@ -127,6 +128,16 @@ class PerHostScans(IScannerCheck):
 
 
 class PerRequestScans(IScannerCheck):
+
+    def __init__(self):
+        self.scan_checks = [
+            self.doHostHeaderScan,
+            self.doCodePathScan,
+            self.doStrutsScan,
+            self.doStruts_2017_9805_Scan,
+            self.doXXEPostScan,
+        ]
+
     def doPassiveScan(self, basePair):
         return []
 
@@ -134,17 +145,15 @@ class PerRequestScans(IScannerCheck):
         if not self.should_trigger_per_request_attacks(basePair, insertionPoint):
             return []
 
-        collab_disabled = '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
-        base_resp_string = safe_bytes_to_string(basePair.getResponse())
-        base_resp_print = tagmap(base_resp_string)
-        issues = self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
-        issues.extend(self.doCodePathScan(basePair, base_resp_print))
-        issues.extend(self.doStrutsScan(basePair))
-        if not collab_disabled:
-            issues.extend(self.doStruts_2017_9805_Scan(basePair))
-            issues.extend(self.doXXEPostScan(basePair))
-        return issues
+        issues = []
+        for scan_check in self.scan_checks:
+            try:
+                issues.extend(scan_check(basePair))
+            except Exception:
+                print 'Error executing PerRequestScans.'+scan_check.__name__+': '
+                print(traceback.format_exc())
 
+        return issues
 
     def should_trigger_per_request_attacks(self, basePair, insertionPoint):
         request = helpers.analyzeRequest(basePair.getRequest())
@@ -194,6 +203,9 @@ class PerRequestScans(IScannerCheck):
 # Tested against https://dev.northpolechristmastown.com/orders.xhtml (SANS Holiday Hack Challenge 2017)
 # Tested against system at https://pentesterlab.com/exercises/s2-052
     def doStruts_2017_9805_Scan(self, basePair):
+        if '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server"):
+            return []
+
         global callbacks, helpers
 
         collab = callbacks.createBurpCollaboratorClientContext()
@@ -254,6 +266,9 @@ class PerRequestScans(IScannerCheck):
 # Based on the plethora of XXE attacks at https://web-in-security.blogspot.it/2016/03/xxe-cheat-sheet.html
 # Tested against https://pentesterlab.com/exercises/play_xxe
     def doXXEPostScan(self, basePair):
+        if '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server"):
+            return []
+
         global callbacks, helpers
 
         collab = callbacks.createBurpCollaboratorClientContext()
@@ -304,7 +319,9 @@ class PerRequestScans(IScannerCheck):
 
 
 
-    def doCodePathScan(self, basePair, base_resp_print):
+    def doCodePathScan(self, basePair):
+        base_resp_string = safe_bytes_to_string(basePair.getResponse())
+        base_resp_print = tagmap(base_resp_string)
         xml_resp, xml_req = self._codepath_attack(basePair, 'application/xml')
         if xml_resp != -1:
             if xml_resp != base_resp_print:
@@ -334,9 +351,10 @@ class PerRequestScans(IScannerCheck):
     def consolidateDuplicateIssues(self, existingIssue, newIssue):
         return is_same_issue(existingIssue, newIssue)
 
+    def doHostHeaderScan(self, basePair):
 
-    def doHostHeaderScan(self, basePair, base_resp_string, base_resp_print):
-
+        base_resp_string = safe_bytes_to_string(basePair.getResponse())
+        base_resp_print = tagmap(base_resp_string)
         rawHeaders = helpers.analyzeRequest(basePair.getRequest()).getHeaders()
 
         # Parse the headers into a dictionary
