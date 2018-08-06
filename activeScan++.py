@@ -49,9 +49,10 @@ class BurpExtender(IBurpExtender):
         helpers = callbacks.getHelpers()
         callbacks.setExtensionName("activeScan++")
 
-        #gracefully skip checks requiring Collaborator if it's disabled
-        collab_options = callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
-        if '"type":"none"' in collab_options:
+        # gracefully skip checks requiring Collaborator if it's disabled
+        collab_enabled = True
+        if '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server"):
+            collab_enabled = False
             debug_msg("Collaborator not enabled; skipping checks that require it")
         
         callbacks.registerScannerCheck(PerHostScans())
@@ -62,9 +63,10 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SuspectTransform())
             callbacks.registerScannerCheck(JetLeak())
             callbacks.registerScannerCheck(SimpleFuzz())
-            if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(Solr())
             callbacks.registerScannerCheck(EdgeSideInclude())
-            if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(doStruts_2017_12611_scan())
+            if collab_enabled:
+                callbacks.registerScannerCheck(Solr())
+                callbacks.registerScannerCheck(doStruts_2017_12611_scan())
 
         print "Successfully loaded activeScan++ v" + VERSION
 
@@ -132,14 +134,15 @@ class PerRequestScans(IScannerCheck):
         if not self.should_trigger_per_request_attacks(basePair, insertionPoint):
             return []
 
-        collab_options = callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
+        collab_disabled = '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
         base_resp_string = safe_bytes_to_string(basePair.getResponse())
         base_resp_print = tagmap(base_resp_string)
         issues = self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
         issues.extend(self.doCodePathScan(basePair, base_resp_print))
         issues.extend(self.doStrutsScan(basePair))
-        if not '"type":"none"' in collab_options: issues.extend(self.doStruts_2017_9805_Scan(basePair))
-        if not '"type":"none"' in collab_options: issues.extend(self.doXXEPostScan(basePair))
+        if not collab_disabled:
+            issues.extend(self.doStruts_2017_9805_Scan(basePair))
+            issues.extend(self.doXXEPostScan(basePair))
         return issues
 
 
@@ -582,7 +585,6 @@ class SuspectTransform(IScannerCheck):
 # Tested against docker instance at https://github.com/Medicean/VulApps/tree/master/s/struts2/s2-053
 class doStruts_2017_12611_scan(IScannerCheck):
     def doActiveScan(self, basePair, insertionPoint):
-        #global callbacks, helpers
         collab = callbacks.createBurpCollaboratorClientContext()
 
         # set the blah blah blah needed before and after the command to be executed
