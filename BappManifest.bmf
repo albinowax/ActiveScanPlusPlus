@@ -3,7 +3,7 @@ ExtensionType: 2
 Name: Active Scan++
 RepoName: active-scan-plus-plus
 ScreenVersion: 1.0.16
-SerialVersion: 14
+SerialVersion: 15
 MinPlatformVersion: 0
 ProOnly: True
 Author: James Kettle
