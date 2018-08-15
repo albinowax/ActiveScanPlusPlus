@@ -31,7 +31,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.18"
+VERSION = "1.0.19"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -537,6 +537,7 @@ class SuspectTransform(IScannerCheck):
             'quote consumption': self.detect_quote_consumption,
             'arithmetic evaluation': self.detect_arithmetic,
             'expression evaluation': self.detect_expression,
+            'template evaluation': self.detect_razor_expression,
             'EL evaluation': self.detect_alt_expression,
         }
 
@@ -559,6 +560,10 @@ class SuspectTransform(IScannerCheck):
     def detect_alt_expression(self, base):
         probe, expect = self.detect_arithmetic(base)
         return '%{' + probe + '}', expect
+
+    def detect_razor_expression(self, base):
+        probe, expect = self.detect_arithmetic(base)
+        return '@(' + probe + ')', expect
 
     def doActiveScan(self, basePair, insertionPoint):
         base = insertionPoint.getBaseValue()
