@@ -534,6 +534,7 @@ class SuspectTransform(IScannerCheck):
             'quote consumption': self.detect_quote_consumption,
             'arithmetic evaluation': self.detect_arithmetic,
             'expression evaluation': self.detect_expression,
+            'template evaluation': self.detect_razor_expression,
             'EL evaluation': self.detect_alt_expression,
         }
 
@@ -556,6 +557,10 @@ class SuspectTransform(IScannerCheck):
     def detect_alt_expression(self, base):
         probe, expect = self.detect_arithmetic(base)
         return '%{' + probe + '}', expect
+
+    def detect_razor_expression(self, base):
+        probe, expect = self.detect_arithmetic(base)
+        return '@(' + probe + ')', expect
 
     def doActiveScan(self, basePair, insertionPoint):
         base = insertionPoint.getBaseValue()
