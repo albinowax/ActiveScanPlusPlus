@@ -35,6 +35,18 @@ To invoke these checks, just run a normal active scan.
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
     
 #### Changelog:
+**1.0.19 20180815**
+  - Detect Razor template injection with @(7*7)
+
+**1.0.18 20180804**
+  - Try converting requests to XML for XXE
+  - Detect CVE-2017-12611, CVE-2017-9805
+  - Improve robustness
+
+**1.0.17 20180411**
+  - Detect interesting files: /.git/config and /server-status
+  - This can be easily extended with your own checks
+
 **1.0.16 20180404**
   - Detect Edge Side Includes
 

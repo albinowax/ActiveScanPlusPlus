@@ -19,6 +19,7 @@ try:
     import string
     import time
     import copy
+    import traceback
     from string import Template
     from cgi import escape
 
@@ -28,7 +29,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.17"
+VERSION = "1.0.19"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -49,10 +50,11 @@ class BurpExtender(IBurpExtender):
         helpers = callbacks.getHelpers()
         callbacks.setExtensionName("activeScan++")
 
-        #gracefully skip checks requiring Collaborator if it's disabled
-        collab_options = callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
-        if '"type":"none"' in collab_options:
-            debug_msg("Collaborator not enabled; skipping checks that require it")
+        # gracefully skip checks requiring Collaborator if it's disabled
+        collab_enabled = True
+        if '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server"):
+            collab_enabled = False
+            print "Collaborator not enabled; skipping checks that require it"
         
         callbacks.registerScannerCheck(PerHostScans())
         callbacks.registerScannerCheck(PerRequestScans())
@@ -62,9 +64,10 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SuspectTransform())
             callbacks.registerScannerCheck(JetLeak())
             callbacks.registerScannerCheck(SimpleFuzz())
-            if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(Solr())
             callbacks.registerScannerCheck(EdgeSideInclude())
-            if not '"type":"none"' in collab_options: callbacks.registerScannerCheck(doStruts_2017_12611_scan())
+            if collab_enabled:
+                callbacks.registerScannerCheck(Solr())
+                callbacks.registerScannerCheck(doStruts_2017_12611_scan())
 
         print "Successfully loaded activeScan++ v" + VERSION
 
@@ -125,6 +128,16 @@ class PerHostScans(IScannerCheck):
 
 
 class PerRequestScans(IScannerCheck):
+
+    def __init__(self):
+        self.scan_checks = [
+            self.doHostHeaderScan,
+            self.doCodePathScan,
+            self.doStrutsScan,
+            self.doStruts_2017_9805_Scan,
+            self.doXXEPostScan,
+        ]
+
     def doPassiveScan(self, basePair):
         return []
 
@@ -132,16 +145,15 @@ class PerRequestScans(IScannerCheck):
         if not self.should_trigger_per_request_attacks(basePair, insertionPoint):
             return []
 
-        collab_options = callbacks.saveConfigAsJson("project_options.misc.collaborator_server")
-        base_resp_string = safe_bytes_to_string(basePair.getResponse())
-        base_resp_print = tagmap(base_resp_string)
-        issues = self.doHostHeaderScan(basePair, base_resp_string, base_resp_print)
-        issues.extend(self.doCodePathScan(basePair, base_resp_print))
-        issues.extend(self.doStrutsScan(basePair))
-        if not '"type":"none"' in collab_options: issues.extend(self.doStruts_2017_9805_Scan(basePair))
-        if not '"type":"none"' in collab_options: issues.extend(self.doXXEPostScan(basePair))
-        return issues
+        issues = []
+        for scan_check in self.scan_checks:
+            try:
+                issues.extend(scan_check(basePair))
+            except Exception:
+                print 'Error executing PerRequestScans.'+scan_check.__name__+': '
+                print(traceback.format_exc())
 
+        return issues
 
     def should_trigger_per_request_attacks(self, basePair, insertionPoint):
         request = helpers.analyzeRequest(basePair.getRequest())
@@ -191,6 +203,9 @@ class PerRequestScans(IScannerCheck):
 # Tested against https://dev.northpolechristmastown.com/orders.xhtml (SANS Holiday Hack Challenge 2017)
 # Tested against system at https://pentesterlab.com/exercises/s2-052
     def doStruts_2017_9805_Scan(self, basePair):
+        if '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server"):
+            return []
+
         global callbacks, helpers
 
         collab = callbacks.createBurpCollaboratorClientContext()
@@ -251,6 +266,9 @@ class PerRequestScans(IScannerCheck):
 # Based on the plethora of XXE attacks at https://web-in-security.blogspot.it/2016/03/xxe-cheat-sheet.html
 # Tested against https://pentesterlab.com/exercises/play_xxe
     def doXXEPostScan(self, basePair):
+        if '"type":"none"' in callbacks.saveConfigAsJson("project_options.misc.collaborator_server"):
+            return []
+
         global callbacks, helpers
 
         collab = callbacks.createBurpCollaboratorClientContext()
@@ -301,7 +319,9 @@ class PerRequestScans(IScannerCheck):
 
 
 
-    def doCodePathScan(self, basePair, base_resp_print):
+    def doCodePathScan(self, basePair):
+        base_resp_string = safe_bytes_to_string(basePair.getResponse())
+        base_resp_print = tagmap(base_resp_string)
         xml_resp, xml_req = self._codepath_attack(basePair, 'application/xml')
         if xml_resp != -1:
             if xml_resp != base_resp_print:
@@ -331,9 +351,10 @@ class PerRequestScans(IScannerCheck):
     def consolidateDuplicateIssues(self, existingIssue, newIssue):
         return is_same_issue(existingIssue, newIssue)
 
+    def doHostHeaderScan(self, basePair):
 
-    def doHostHeaderScan(self, basePair, base_resp_string, base_resp_print):
-
+        base_resp_string = safe_bytes_to_string(basePair.getResponse())
+        base_resp_print = tagmap(base_resp_string)
         rawHeaders = helpers.analyzeRequest(basePair.getRequest()).getHeaders()
 
         # Parse the headers into a dictionary
@@ -513,6 +534,7 @@ class SuspectTransform(IScannerCheck):
             'quote consumption': self.detect_quote_consumption,
             'arithmetic evaluation': self.detect_arithmetic,
             'expression evaluation': self.detect_expression,
+            'template evaluation': self.detect_razor_expression,
             'EL evaluation': self.detect_alt_expression,
         }
 
@@ -535,6 +557,10 @@ class SuspectTransform(IScannerCheck):
     def detect_alt_expression(self, base):
         probe, expect = self.detect_arithmetic(base)
         return '%{' + probe + '}', expect
+
+    def detect_razor_expression(self, base):
+        probe, expect = self.detect_arithmetic(base)
+        return '@(' + probe + ')', expect
 
     def doActiveScan(self, basePair, insertionPoint):
         base = insertionPoint.getBaseValue()
@@ -582,7 +608,6 @@ class SuspectTransform(IScannerCheck):
 # Tested against docker instance at https://github.com/Medicean/VulApps/tree/master/s/struts2/s2-053
 class doStruts_2017_12611_scan(IScannerCheck):
     def doActiveScan(self, basePair, insertionPoint):
-        #global callbacks, helpers
         collab = callbacks.createBurpCollaboratorClientContext()
 
         # set the blah blah blah needed before and after the command to be executed
