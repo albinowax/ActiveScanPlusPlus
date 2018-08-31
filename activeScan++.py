@@ -266,6 +266,11 @@ class PerRequestScans(IScannerCheck):
 # Tested against instance set up like https://github.com/xfox64x/CVE-2018-11776
     def doStruts_2018_11776_Scan(self, basePair):
 
+        # Don't bother if it isn't a 302 response
+        origResponse = safe_bytes_to_string(basePair.getResponse())
+        if (origResponse.find('302 Found') < 0):
+            return[]
+        
         path = helpers.analyzeRequest(basePair).getUrl().getPath()
         last_slash = 0
         # The exploit depends upon injecting OGNL into the path of a vulnerable action, so we find
