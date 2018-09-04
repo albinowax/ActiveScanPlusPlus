@@ -12,7 +12,7 @@ ActiveScan++ extends Burp Suite's active and passive scanning capabilities. Desi
 It also adds checks for the following issues:
 
   - Blind code injection via expression language, Ruby's open() and Perl's open()
-  - CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080, CVE-2017-5638, CVE-2017-12629
+  - CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080, CVE-2017-5638, CVE-2017-12629, CVE-2018-11776, etc
   
 #### Requirements:
 Burp Suite Professional (version 1.6 or later)
@@ -35,6 +35,9 @@ To invoke these checks, just run a normal active scan.
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
     
 #### Changelog:
+**1.0.20 20180903**
+  - Detect new Struts RCE (CVE-2018-11776)
+
 **1.0.19 20180815**
   - Detect Razor template injection with @(7*7)
 
