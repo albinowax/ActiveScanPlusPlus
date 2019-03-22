@@ -35,6 +35,9 @@ To invoke these checks, just run a normal active scan.
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
     
 #### Changelog:
+**1.0.21 20190322**
+  - Detect Rails file disclosure (CVE-2019-5418)
+
 **1.0.20 20180903**
   - Detect new Struts RCE (CVE-2018-11776)
 
