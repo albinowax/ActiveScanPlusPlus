@@ -185,12 +185,12 @@ class PerRequestScans(IScannerCheck):
         return False
 
     def doRailsScan(self, basePair):
-        if 'root:' in safe_bytes_to_string(basePair.getResponse()):
+        if '127.0.0.1' in safe_bytes_to_string(basePair.getResponse()):
             return
 
-        (ignore, req) = setHeader(basePair.getRequest(), 'Accept', '../../../../../../../../../etc/passwd{{', True)
+        (ignore, req) = setHeader(basePair.getRequest(), 'Accept', '../../../../../../../../../../../../../etc/hosts{{', True)
         attack = callbacks.makeHttpRequest(basePair.getHttpService(), req)
-        if 'root:' in safe_bytes_to_string(attack.getResponse()):
+        if '127.0.0.1' in safe_bytes_to_string(attack.getResponse()):
             return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
                 [attack],
                 'Rails file disclosure',
