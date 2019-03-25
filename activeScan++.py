@@ -977,7 +977,6 @@ def debug_msg(message):
         print message
 
 
-# FIXME breaking some requests somehow
 def setHeader(request, name, value, add_if_not_present=False):
     # find the end of the headers
     prev = ''
@@ -1007,7 +1006,7 @@ def setHeader(request, name, value, add_if_not_present=False):
 
     # stitch the request back together
     if modified:
-        modified_request = helpers.stringToBytes('\n'.join(headers) + '\n') + request[body_start:]
+        modified_request = helpers.stringToBytes('\r\n'.join(headers) + '\r\n') + request[body_start:]
     elif add_if_not_present:
         # probably doesn't work with POST requests
         real_start = helpers.analyzeRequest(request).getBodyOffset()
