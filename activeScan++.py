@@ -193,8 +193,9 @@ class PerRequestScans(IScannerCheck):
 
         (ignore, req) = setHeader(basePair.getRequest(), 'Accept', '../../../../../../../../../../../../../e*c/h*s*s{{', True)
         attack = callbacks.makeHttpRequest(basePair.getHttpService(), req)
-        if '127.0.0.1' in safe_bytes_to_string(attack.getResponse()):
-
+        response = safe_bytes_to_string(attack.getResponse())
+        body_delim = '\r\n\r\n'
+        if body_delim in response and '127.0.0.1' in response.split(body_delim, 1)[1]:
             # avoid false positives caused by burp's own scanchecks containing '127.0.0.1'
             try:
                 collabLocation = callbacks.createBurpCollaboratorClientContext().getCollaboratorServerLocation()
