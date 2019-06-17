@@ -96,6 +96,7 @@ class PerHostScans(IScannerCheck):
 
         '/.git/config': '[core]',
         '/server-status': 'Server uptime',
+        '/.well-known/apple-app-site-association': 'applinks',
     }
 
 
