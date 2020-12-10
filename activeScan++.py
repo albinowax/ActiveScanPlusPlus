@@ -825,7 +825,7 @@ class CodeExec(IScannerCheck):
                         return [CustomScanIssue(attack.getHttpService(), url, [dummyAttack, attack], 'Code injection',
                                                 "The application appears to evaluate user input as code.<p> It was instructed to sleep for 0 seconds, and a response time of <b>" + str(
                                                     dummyTime) + "</b> seconds was observed. <br/>It was then instructed to sleep for 10 seconds, which resulted in a response time of <b>" + str(
-                                                    timer) + "</b> seconds", 'Firm', 'High')]
+                                                    timer) + "</b> seconds.</p>", 'Firm', 'High')]
 
         return []
 
