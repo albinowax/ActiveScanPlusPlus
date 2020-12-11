@@ -3,9 +3,10 @@ ExtensionType: 2
 Name: Active Scan++
 RepoName: active-scan-plus-plus
 ScreenVersion: 1.0.21d
-SerialVersion: 21
+SerialVersion: 22
 MinPlatformVersion: 0
 ProOnly: True
 Author: James Kettle
 ShortDescription: Extends Burp's active and passive scanning capabilities.
 EntryPoint: activeScan++.py
+BuildCommand: 
