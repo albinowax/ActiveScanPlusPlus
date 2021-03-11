@@ -31,7 +31,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.21c"
+VERSION = "1.0.21d"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -100,6 +100,8 @@ class PerHostScans(IScannerCheck):
         '/.git/config': '[core]',
         '/server-status': 'Server uptime',
         '/.well-known/apple-app-site-association': 'applinks',
+        '/.well-known/openid-configuration': '"authorization_endpoint"',
+        '/.well-known/oauth-authorization-server': '"authorization_endpoint"',
     }
 
 
