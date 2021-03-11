@@ -16,7 +16,7 @@ It also adds checks for the following issues:
   
 #### Requirements:
 Burp Suite Professional (version 1.6 or later)
-Jython 2.5 or later standalone: http://www.jython.org/downloads.html
+Jython 2.5 or later standalone: https://www.jython.org/download
 
 #### Manual installation:
 
