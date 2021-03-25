@@ -35,6 +35,10 @@ To invoke these checks, just run a normal active scan.
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
     
 #### Changelog:
+**1.0.22 20210325**
+  - Detect interesting OAuth endpoints. 
+  - For further details, please refer to [Hidden OAuth Attack Vectors](https://portswigger.net/research/hidden-oauth-attack-vectors)
+  
 **1.0.21 20190322**
   - Detect Rails file disclosure (CVE-2019-5418)
 

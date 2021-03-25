@@ -31,7 +31,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.21d"
+VERSION = "1.0.22"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -94,20 +94,19 @@ class PerHostScans(IScannerCheck):
         return issues
 
 
-    interestingFileMappings = {
-        # relative_url: vulnerable_response_content
-
-        '/.git/config': '[core]',
-        '/server-status': 'Server uptime',
-        '/.well-known/apple-app-site-association': 'applinks',
-        '/.well-known/openid-configuration': '"authorization_endpoint"',
-        '/.well-known/oauth-authorization-server': '"authorization_endpoint"',
-    }
+    interestingFileMappings = [
+        # [host-relative-url, vulnerable_response_content, reason]
+        ['/.git/config', '[core]', 'source code leak?'],
+        ['/server-status', 'Server uptime', 'debug info'],
+        ['/.well-known/apple-app-site-association', 'applinks', 'https://developer.apple.com/library/archive/documentation/General/Conceptual/AppSearch/UniversalLinks.html'],
+        ['/.well-known/openid-configuration', '"authorization_endpoint"', 'https://portswigger.net/research/hidden-oauth-attack-vectors'],
+        ['/.well-known/oauth-authorization-server', '"authorization_endpoint"', 'https://portswigger.net/research/hidden-oauth-attack-vectors'],
+    ]
 
 
     def interestingFileScan(self, basePair):
         issues = []
-        for url, expect in self.interestingFileMappings.items():
+        for (url, expect, reason) in self.interestingFileMappings:
             attack = self.fetchURL(basePair, url)
             if expect in safe_bytes_to_string(attack.getResponse()):
 
@@ -118,7 +117,7 @@ class PerHostScans(IScannerCheck):
                         CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(attack).getUrl(),
                                         [attack, baseline],
                                         'Interesting response',
-                                        "The response to <b>"+html_encode(url)+"</b> contains <b>'"+html_encode(expect)+"'</b><br/><br/>This may be interesting.",
+                                        "The response to <b>"+html_encode(url)+"</b> contains <b>'"+html_encode(expect)+"'</b><br/><br/>This may be interesting. Here's a clue why: <b>"+html_encode(reason)+"</b>",
                                         'Firm', 'High')
                     )
 
@@ -514,7 +513,12 @@ class PerRequestScans(IScannerCheck):
                     This is a serious issue if the application is not externally accessible or uses IP-based access restrictions. Attackers can use DNS Rebinding to bypass any IP or firewall based access restrictions that may be in place, by proxying through their target's browser.<br/>
                     Note that modern web browsers' use of DNS pinning does not effectively prevent this attack. The only effective mitigation is server-side: https://bugzilla.mozilla.org/show_bug.cgi?id=689835#c13<br/><br/>
 
-                    Additionally, it may be possible to directly bypass poorly implemented access restrictions by sending a Host header of 'localhost'"""
+                    Additionally, it may be possible to directly bypass poorly implemented access restrictions by sending a Host header of 'localhost'.
+                    
+                    Resources: <br/><ul>
+                        <li>https://portswigger.net/web-security/host-header</li>
+                    </ul>
+                    """
         else:
             title = 'Host header poisoning'
             sev = 'Medium'
@@ -524,7 +528,7 @@ class PerRequestScans(IScannerCheck):
                     Depending on the configuration of the server and any intervening caching devices, it may also be possible to use this for cache poisoning attacks.<br/>
                     <br/>
                     Resources: <br/><ul>
-                        <li>http://carlos.bueno.org/2008/06/host-header-injection.html<br/></li>
+                        <li>https://portswigger.net/web-security/host-header<br/></li>
                         <li>http://www.skeletonscribe.net/2013/05/practical-http-host-header-attacks.html</li>
                         </ul>
             """
