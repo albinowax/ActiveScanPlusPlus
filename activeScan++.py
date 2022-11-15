@@ -114,12 +114,13 @@ class PerHostScans(IScannerCheck):
                 # prevent false positives by tweaking the URL and confirming the expected string goes away
                 baseline = self.fetchURL(basePair, url[:-1])
                 if expect not in safe_bytes_to_string(baseline.getResponse()):
+                    severity = 'Low' if '/.well-known/' in url else 'High'
                     issues.append(
                         CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(attack).getUrl(),
                                         [attack, baseline],
                                         'Interesting response',
                                         "The response to <b>"+html_encode(url)+"</b> contains <b>'"+html_encode(expect)+"'</b><br/><br/>This may be interesting. Here's a clue why: <b>"+html_encode(reason)+"</b>",
-                                        'Firm', 'High')
+                                        'Firm', severity)
                     )
 
 
@@ -721,7 +722,7 @@ class Log4j(IScannerCheck):
         interactions = collab.fetchAllCollaboratorInteractions()
         if interactions:
             return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
-                                    'Log4Shell (CVE-2021-44228)',
+                                    'Log4j (CVE-2021-44228)',
                                     "The application appears to be running a version of log4j vulnerable to RCE. ActiveScan++ sent a reference to an external file, and received a pingback from the server.<br/><br/>" +
                                     "To investigate, use the manual collaborator client. It may be possible to escalate this vulnerability into RCE. Please refer to https://www.lunasec.io/docs/blog/log4j-zero-day/ for further information",
                                     'Firm', 'High')]
