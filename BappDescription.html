@@ -1,0 +1,28 @@
+<p>ActiveScan++ extends Burp Suite's active and passive scanning capabilities.
+Designed to add minimal network overhead, it identifies application behaviour that may be of interest to advanced testers:</p>
+
+<ul>
+    <li>Potential host header attacks (password reset poisoning, cache poisoning, DNS rebinding)</li>
+    <li>Edge side includes</li>
+    <li>XML input handling</li>
+    <li>Suspicious input transformation (eg 7*7 =&gt; '49', \x41\x41 =&gt; 'AA')</li>
+    <li>Passive-scanner issues that only occur during fuzzing (install the 'Error Message Checks' extension for maximum effectiveness)</li>
+</ul>
+
+<p>It also adds checks for the following issues:</p>
+
+<ul>
+    <li>Blind code injection via expression language, Ruby's open() and Perl's open()</li>
+    <li>CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080, CVE-2017-5638, CVE-2017-12629, CVE-2018-11776</li>
+</ul>
+
+<p>It also provides insertion points for HTTP basic authentication.</p>
+
+<p>To invoke these checks, just run a normal active scan.</p>
+
+<p>The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host.
+Exercise caution when running this scanner against applications in a shared hosting environment.</p>
+
+<p>This extension requires Burp Suite Professional version 1.6 or later and Jython 2.5 or later standalone.</p>
+
+<p>Copyright &copy; 2014-2022 PortSwigger Ltd.</p>
