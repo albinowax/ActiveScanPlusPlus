@@ -119,7 +119,7 @@ class PerHostScans(IScannerCheck):
                                         [attack, baseline],
                                         'Interesting response',
                                         "The response to <b>"+html_encode(url)+"</b> contains <b>'"+html_encode(expect)+"'</b><br/><br/>This may be interesting. Here's a clue why: <b>"+html_encode(reason)+"</b>",
-                                        'Firm', 'High')
+                                        'Firm', 'Information')
                     )
 
 
