@@ -35,6 +35,9 @@ To invoke these checks, just run a normal active scan.
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
     
 #### Changelog:
+**1.0.24 20230801**
+- Devise (no CVE, refer to [Smashing the State Machine](https://portswigger.net/research/smashing-the-state-machine))
+
 **1.0.23 20211210**
  - Log4Shell (CVE-2021-44228)
  

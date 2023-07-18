@@ -31,7 +31,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.23"
+VERSION = "1.0.24"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -69,7 +69,8 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SimpleFuzz())
             callbacks.registerScannerCheck(EdgeSideInclude())
             if collab_enabled:
-                callbacks.registerScannerCheck(Log4j())
+                # callbacks.registerScannerCheck(Log4j())
+                # log4j is disabled because this extension is better: https://github.com/silentsignal/burp-log4shell
                 callbacks.registerScannerCheck(Solr())
                 callbacks.registerScannerCheck(doStruts_2017_12611_scan())
 
@@ -102,6 +103,7 @@ class PerHostScans(IScannerCheck):
         ['/.well-known/apple-app-site-association', 'applinks', 'https://developer.apple.com/library/archive/documentation/General/Conceptual/AppSearch/UniversalLinks.html'],
         ['/.well-known/openid-configuration', '"authorization_endpoint"', 'https://portswigger.net/research/hidden-oauth-attack-vectors'],
         ['/.well-known/oauth-authorization-server', '"authorization_endpoint"', 'https://portswigger.net/research/hidden-oauth-attack-vectors'],
+        ['/users/confirmation', 'onfirmation token', 'Websites using the Devise framework often have a race condition enabling email forgery: https://portswigger.net/research/smashing-the-state-machine'],
     ]
 
 
