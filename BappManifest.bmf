@@ -2,11 +2,12 @@ Uuid: 3123d5b5f25c4128894d97ea1acc4976
 ExtensionType: 2
 Name: Active Scan++
 RepoName: active-scan-plus-plus
-ScreenVersion: 1.0.23
-SerialVersion: 22
+ScreenVersion: 1.0.24
+SerialVersion: 27
 MinPlatformVersion: 0
 ProOnly: True
-Author: James Kettle
+Author: James 'albinowax' Kettle, PortSwigger
 ShortDescription: Extends Burp's active and passive scanning capabilities.
 EntryPoint: activeScan++.py
 BuildCommand: 
+SupportedProducts: Pro 
