@@ -389,7 +389,6 @@ public class PerRequestScans extends ParamScan {
         }
 
         if (!Utilities.containsBytes(baseResponse, realHost.getBytes())) {
-            Utilities.out("Skipping host header attacks on this request as the host isn't reflected");
             return Collections.emptyList();
         }
 
