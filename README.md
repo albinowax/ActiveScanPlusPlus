@@ -15,26 +15,22 @@ It also adds checks for the following issues:
   - CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080, CVE-2017-5638, CVE-2017-12629, CVE-2018-11776, etc
   
 #### Requirements:
-Burp Suite Professional (version 1.6 or later)
-Jython 2.5 or later standalone: https://www.jython.org/download
+Burp Suite Professional or Enterprise (latest stable version)
 
 #### Manual installation:
 
-1. 'Extender'->'Options'
-2. Click 'Select file' under 'Python environment'
-3. Choose jython-standalone-2.5.jar
-4. 'Extender'->'Extensions'
-5. Click 'Add'
-6. Change 'Extension Type' to Python
-7. Choose activeScan++.py
-8. Done!
+1. 'Extensions'->'Installed'->'Add
+2. Click 'Select file'
+3. Choose build/libs/active-scan-plus-plus-all.jar
 
 #### Usage notes:
 To invoke these checks, just run a normal active scan.
-
-The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
-    
+ 
 #### Changelog:
+**2.0.0 20241202**
+- Rewrite in Java!
+- Add support for running individual checks at scale via context menu
+
 **1.0.24 20230801**
 - Devise (no CVE, refer to [Smashing the State Machine](https://portswigger.net/research/smashing-the-state-machine))
 

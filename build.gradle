@@ -1,0 +1,33 @@
+apply plugin: 'java'
+
+sourceCompatibility = 17
+targetCompatibility = 17
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    //compile 'net.portswigger.burp.extender:burp-extender-api:1.7.13'
+    implementation 'org.apache.commons:commons-text:1.9'
+    implementation files('bulkScan-all.jar') // this contains albinowaxUtils
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src'
+        }
+        resources {
+            srcDir 'resources'
+        }
+    }
+}
+
+archivesBaseName = ('active-scan-plus-plus-all')
+
+task fatJar(type: Jar) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    from { configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
