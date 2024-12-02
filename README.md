@@ -29,7 +29,6 @@ To invoke these checks, just run a normal active scan.
 #### Changelog:
 **2.0.0 20241202**
 - Rewrite in Java!
-- Add support for running individual checks at scale via context menu
 
 **1.0.24 20230801**
 - Devise (no CVE, refer to [Smashing the State Machine](https://portswigger.net/research/smashing-the-state-machine))
