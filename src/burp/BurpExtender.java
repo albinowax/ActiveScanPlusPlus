@@ -18,8 +18,8 @@ public class BurpExtender implements IBurpExtender, IExtensionStateListener, Bur
     @Override
     public void initialize(MontoyaApi api) {
         Utilities.montoyaApi = api;
-        BulkUtilities.registerContextMenu();
-        api.http().registerHttpHandler(new Tester());
+        //BulkUtilities.registerContextMenu(); // don't offer the bulkScan
+        // api.http().registerHttpHandler(new Tester());
         // api.userInterface().registerContextMenuItemsProvider(new OfferHostnameOverride());
     }
 

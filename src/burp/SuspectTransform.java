@@ -8,7 +8,7 @@ import java.util.Random;
 import static burp.PerHostScans.safeBytesToString;
 import static burp.Utilities.helpers;
 
-public class SuspectTransform extends Scan {
+public class SuspectTransform extends ParamScan {
     private Map<String, Check> checks;
     private int confirmCount;
 

@@ -12,7 +12,7 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class PerRequestScans extends Scan {
+public class PerRequestScans extends ParamScan {
     private final List<ScanCheck> scanChecks;
 
     public PerRequestScans(String name) {

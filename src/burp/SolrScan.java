@@ -6,7 +6,7 @@ import static burp.Utilities.callbacks;
 import static burp.Utilities.helpers;
 import static burp.OldUtilities.request2;
 
-public class SolrScan extends Scan {
+public class SolrScan extends ParamScan {
     public SolrScan(String name) {
         super(name);
     }

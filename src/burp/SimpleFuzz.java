@@ -9,7 +9,7 @@ import static burp.Utilities.callbacks;
 import static burp.Utilities.helpers;
 
 
-public class SimpleFuzz extends Scan {
+public class SimpleFuzz extends ParamScan {
 
     public SimpleFuzz(String name) {
         super(name);

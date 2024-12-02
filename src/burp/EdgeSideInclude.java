@@ -7,7 +7,7 @@ import static burp.OldUtilities.randstr;
 import static burp.Utilities.callbacks;
 import static burp.Utilities.helpers;
 
-public class EdgeSideInclude extends Scan {
+public class EdgeSideInclude extends ParamScan {
     public EdgeSideInclude(String name) {
         super(name);
     }

@@ -7,7 +7,7 @@ import static burp.Utilities.callbacks;
 import static burp.Utilities.helpers;
 import static burp.OldUtilities.request2;
 
-public class Struts201712611Scan extends Scan {
+public class Struts201712611Scan extends ParamScan {
     Struts201712611Scan(String name) {
         super(name);
     }

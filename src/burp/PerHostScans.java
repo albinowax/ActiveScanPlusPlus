@@ -1,7 +1,7 @@
 package burp;
 import java.util.*;
 
-public class PerHostScans extends Scan {
+public class PerHostScans extends ParamScan {
     private static Set<String> scannedHosts = new HashSet<>();
 
     PerHostScans(String name) {

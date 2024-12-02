@@ -6,7 +6,7 @@ import static burp.PerHostScans.safeBytesToString;
 import static burp.Utilities.helpers;
 import static burp.OldUtilities.request2;
 
-public class JetLeak extends Scan {
+public class JetLeak extends ParamScan {
 
     public JetLeak(String name) {
         super(name);
