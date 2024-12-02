@@ -16,7 +16,7 @@ It also adds checks for the following issues:
   
 #### Requirements:
 Burp Suite Professional (version 1.6 or later)
-Jython 2.5 or later standalone: http://www.jython.org/downloads.html
+Jython 2.5 or later standalone: https://www.jython.org/download
 
 #### Manual installation:
 
@@ -35,6 +35,16 @@ To invoke these checks, just run a normal active scan.
 The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host. Exercise caution when running this scanner against applications in a shared hosting environment.
     
 #### Changelog:
+**1.0.24 20230801**
+- Devise (no CVE, refer to [Smashing the State Machine](https://portswigger.net/research/smashing-the-state-machine))
+
+**1.0.23 20211210**
+ - Log4Shell (CVE-2021-44228)
+ 
+**1.0.22 20210325**
+  - Detect interesting OAuth endpoints. 
+  - For further details, please refer to [Hidden OAuth Attack Vectors](https://portswigger.net/research/hidden-oauth-attack-vectors)
+  
 **1.0.21 20190322**
   - Detect Rails file disclosure (CVE-2019-5418)
 
