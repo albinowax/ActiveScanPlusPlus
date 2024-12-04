@@ -25,7 +25,9 @@ public class SuspectTransform extends ParamScan {
     }
 
     private Pair<String, List<String>> detectQuoteConsumption(String base) {
-        return new ImmutablePair<>("''", Collections.singletonList("'"));
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+        return new ImmutablePair<>(leftAnchor+"''"+rightAnchor, Collections.singletonList(leftAnchor+"'"+rightAnchor));
     }
 
     private Pair<String, List<String>> detectArithmetic(String base) {
