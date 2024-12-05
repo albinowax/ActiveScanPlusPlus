@@ -3,11 +3,11 @@ ExtensionType: 1
 Name: Active Scan++
 RepoName: active-scan-plus-plus
 ScreenVersion: 2.0.0
-SerialVersion: 32
-MinPlatformVersion: 32
+SerialVersion: 33
+MinPlatformVersion: 12
 ProOnly: True
 Author: James 'albinowax' Kettle, PortSwigger
 ShortDescription: Extends Burp's active and passive scanning capabilities.
-EntryPoint: build/libs/turbo-intruder-all.jar
-BuildCommand: ./gradlew build fatJar
+EntryPoint: build/libs/active-scan-plus-plus-all.jar
+BuildCommand: ./gradlew fatJar
 SupportedProducts: Pro 
