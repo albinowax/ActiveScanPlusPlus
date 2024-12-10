@@ -27,6 +27,9 @@ Burp Suite Professional or Enterprise (latest stable version)
 To invoke these checks, just run a normal active scan.
  
 #### Changelog:
+**2.0.1 20241210**
+- Resolve some long-standing false positives
+
 **2.0.0 20241202**
 - Rewrite in Java!
 
