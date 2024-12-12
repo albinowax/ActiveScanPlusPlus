@@ -21,14 +21,13 @@ public class SuspectTransform extends ParamScan {
         this.checks.put("template evaluation", this::detectRazorExpression);
         this.checks.put("EL evaluation", this::detectAltExpression);
         this.checks.put("unicode normalisation", this::detectUnicodeNormalisation);
-
         this.confirmCount = 2;
     }
-
+    
     private Pair<String, List<String>> detectUnicodeNormalisation(String base) {
         String leftAnchor = Utilities.randomString(6);
         String rightAnchor = Utilities.randomString(6);
-        return new ImmutablePair<>(leftAnchor+"à"+rightAnchor, Collections.singletonList(leftAnchor+"a"+rightAnchor));
+        return new ImmutablePair<>(leftAnchor+"\u212a"+rightAnchor, Collections.singletonList(leftAnchor+"K"+rightAnchor));
     }
 
     private Pair<String, List<String>> detectQuoteConsumption(String base) {
