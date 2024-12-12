@@ -1,5 +1,7 @@
 package burp;
 
+import burp.api.montoya.core.BurpSuiteEdition;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
@@ -91,9 +93,10 @@ public class OldUtilities {
     }
 
     public static void launchPassiveScan(IHttpRequestResponse attack) {
-        if (attack.getResponse() == null) {
+        if (Utilities.montoyaApi.burpSuite().version().edition().equals(BurpSuiteEdition.ENTERPRISE_EDITION) || attack.getResponse() == null) {
             return;
         }
+
         IHttpService service = attack.getHttpService();
         boolean usingHttps = service.getProtocol().equals("https");
         Utilities.callbacks.doPassiveScan(service.getHost(), service.getPort(), usingHttps, attack.getRequest(), attack.getResponse());
