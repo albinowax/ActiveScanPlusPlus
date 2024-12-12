@@ -22,8 +22,8 @@ public class PerRequestScans extends ParamScan {
                 this::doHostHeaderScan,
                 this::doCodePathScan,
                 this::doStrutsScan,
-                this::doStruts20179805Scan,
-                this::doStruts201811776Scan,
+                //this::doStruts20179805Scan,
+                //this::doStruts201811776Scan,
                 //this::doXXEPostScan, // dodgy check
                 this::doRailsScan
         );
@@ -167,26 +167,11 @@ public class PerRequestScans extends ParamScan {
         attack = fetchModifiedRequest(attack, "Content-Length", String.valueOf(wholeParam.length()));
 
         byte[] req = attack.getRequest();
-        String asciiReq = new String(req);
+        req = Utilities.setBody(req, wholeParam);
+        //req = OldUtilities.concatenate(req, wholeParam.getBytes());
+        req = Utilities.setMethod(req, "POST");
 
-        int bodyIndex = asciiReq.indexOf("\r\n\r\n");
-        if (bodyIndex > 1) {
-            req = Arrays.copyOfRange(req, 0, bodyIndex + 4);
-        } else {
-            bodyIndex = asciiReq.indexOf("\n\n");
-            if (bodyIndex > 1) {
-                req = Arrays.copyOfRange(req, 0, bodyIndex + 2);
-            }
-        }
-
-        req = OldUtilities.concatenate(req, wholeParam.getBytes());
-
-        if (req[0] == 71) { // if request starts with G (GET)
-            req = Arrays.copyOfRange(req, 3, req.length); // trim GET
-            req = OldUtilities.concatenate(new byte[]{80, 79, 83, 84}, req); // insert POST
-        }
-
-        System.out.println("The outgoing Struts_2017_9805 request looks like:\n\n" + new String(req) + "\n");
+        // System.out.println("The outgoing Struts_2017_9805 request looks like:\n\n" + new String(req) + "\n");
 
         attack = Utilities.callbacks.makeHttpRequest(basePair.getHttpService(), req);
         List<IBurpCollaboratorInteraction> interactions = collab.fetchAllCollaboratorInteractions();
@@ -219,7 +204,8 @@ public class PerRequestScans extends ParamScan {
             String attackString = "/$%7B(" + x + "*" + y + ")%7D";
             String attackPath = path.substring(0, lastSlash) + attackString + path.substring(lastSlash);
 
-            String newReq = OldUtilities.safeBytesToString(basePair.getRequest()).replaceFirst(path, attackPath);
+            //String newReq = OldUtilities.safeBytesToString(basePair.getRequest()).replaceFirst(path, attackPath);
+            String newReq = OldUtilities.safeBytesToString(Utilities.setPath(basePair.getRequest(), attackPath));
             System.out.println("The outgoing 2018-11776 request looks like:\n\n" + newReq + "\n");
             IHttpRequestResponse attack = Utilities.callbacks.makeHttpRequest(basePair.getHttpService(), newReq.getBytes());
             String asciiResponse = new String(attack.getResponse());
