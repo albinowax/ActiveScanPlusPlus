@@ -53,6 +53,7 @@ public class PerHostScans extends ParamScan {
                 // prevent false positives by tweaking the URL and confirming the expected string goes away
                 IHttpRequestResponse baseline = fetchURL(basePair, url.substring(0, url.length() - 1));
                 if (!safeBytesToString(baseline.getResponse()).contains(expect)) {
+                    Utilities.out("Reporting issue: "+reason);
                     issues.add(new CustomScanIssue(
                             basePair.getHttpService(),
                             Utilities.helpers.analyzeRequest(attack).getUrl(),
