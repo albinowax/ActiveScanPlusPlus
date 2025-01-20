@@ -21,6 +21,8 @@ public class SuspectTransform extends ParamScan {
         this.checks.put("template evaluation", this::detectRazorExpression);
         this.checks.put("EL evaluation", this::detectAltExpression);
         this.checks.put("unicode normalisation", this::detectUnicodeNormalisation);
+        this.checks.put("url decoding error", this::detectUrlDecodeError);
+        this.checks.put("unicode codepoint truncation", this::detectUnicodeCodepointTruncation);
         this.confirmCount = 2;
     }
     
@@ -28,6 +30,18 @@ public class SuspectTransform extends ParamScan {
         String leftAnchor = Utilities.randomString(6);
         String rightAnchor = Utilities.randomString(6);
         return new ImmutablePair<>(leftAnchor+"\u212a"+rightAnchor, Collections.singletonList(leftAnchor+"K"+rightAnchor));
+    }
+
+    private Pair<String, List<String>> detectUrlDecodeError(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+        return new ImmutablePair<>(leftAnchor+"\u0391"+rightAnchor, Collections.singletonList(leftAnchor+"N\u0011"+rightAnchor));
+    }
+
+    private Pair<String, List<String>> detectUnicodeCodepointTruncation(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+        return new ImmutablePair<>(leftAnchor+"\uCF7B"+rightAnchor, Collections.singletonList(leftAnchor+"{"+rightAnchor));
     }
 
     private Pair<String, List<String>> detectQuoteConsumption(String base) {
