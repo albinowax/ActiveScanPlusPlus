@@ -109,7 +109,7 @@ public class SuspectTransform extends ParamScan {
                                     helpers.analyzeRequest(attack).getUrl(),
                                     new IHttpRequestResponse[]{attack},
                                     "Suspicious input transformation: " + name,
-                                    "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
+                                    "The application transforms input in a manner that indicates potential vulnerability (e.g., code injection, validation bypass, etc.):<br/><br/> "
                                             + "The following probe was sent: <b>" + probe + "</b><br/>"
                                             + "The server response contained the evaluated result: <b>" + e + "</b><br/><br/>Manual investigation is advised.",
                                     "Tentative", CustomScanIssue.severity.High));
