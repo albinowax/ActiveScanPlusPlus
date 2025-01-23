@@ -2,6 +2,7 @@ package burp;
 
 import burp.api.montoya.BurpExtension;
 import burp.api.montoya.MontoyaApi;
+import burp.api.montoya.core.BurpSuiteEdition;
 
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
@@ -18,7 +19,9 @@ public class BurpExtender implements IBurpExtender, IExtensionStateListener, Bur
     @Override
     public void initialize(MontoyaApi api) {
         Utilities.montoyaApi = api;
-        BulkUtilities.registerContextMenu(); // don't offer the bulkScan
+        if (!Utilities.montoyaApi.burpSuite().version().edition().equals(BurpSuiteEdition.ENTERPRISE_EDITION)) {
+            BulkUtilities.registerContextMenu();
+        }
         // api.http().registerHttpHandler(new Tester());
         // api.userInterface().registerContextMenuItemsProvider(new OfferHostnameOverride());
     }
