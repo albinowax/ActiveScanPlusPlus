@@ -24,11 +24,11 @@ public class SuspectTransform extends ParamScan {
         this.checks.put("EL evaluation", new CheckDetails(this::detectAltExpression,
                 List.of("https://portswigger.net/research/server-side-template-injection")));
         this.checks.put("unicode normalisation", new CheckDetails(this::detectUnicodeNormalisation,
-                List.of("http://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
+                List.of("https://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
         this.checks.put("url decoding error", new CheckDetails(this::detectUrlDecodeError,
                 List.of("https://blog.orange.tw/posts/2025-01-worstfit-unveiling-hidden-transformers-in-windows-ansi/")));
         this.checks.put("unicode codepoint truncation", new CheckDetails(this::detectUnicodeCodepointTruncation,
-                List.of("http://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
+                List.of("https://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
         this.confirmCount = 2;
     }
     

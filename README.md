@@ -27,6 +27,9 @@ Burp Suite Professional or Enterprise (latest stable version)
 To invoke these checks, just run a normal active scan.
  
 #### Changelog:
+**2.0.3 20250123**
+- Unicode processing issues (refer to [Bypassing character blocklists with unicode overflows](https://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows))
+
 **2.0.1 20241210**
 - Resolve some long-standing false positives
 
