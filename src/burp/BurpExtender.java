@@ -11,14 +11,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class BurpExtender implements IBurpExtender, IExtensionStateListener, BurpExtension {
     private static final String name = "ActiveScan++";
-    private static final String version = "2.0.2";
+    private static final String version = "2.0.3";
     public boolean unloaded = false;
     static ConcurrentHashMap<String, Boolean> hostsToSkip = new ConcurrentHashMap<>();
 
     @Override
     public void initialize(MontoyaApi api) {
         Utilities.montoyaApi = api;
-        //BulkUtilities.registerContextMenu(); // don't offer the bulkScan
+        BulkUtilities.registerContextMenu(); // don't offer the bulkScan
         // api.http().registerHttpHandler(new Tester());
         // api.userInterface().registerContextMenuItemsProvider(new OfferHostnameOverride());
     }

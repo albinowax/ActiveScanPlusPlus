@@ -9,26 +9,45 @@ import static burp.PerHostScans.safeBytesToString;
 import static burp.Utilities.helpers;
 
 public class SuspectTransform extends ParamScan {
-    private Map<String, Check> checks;
+    private Map<String, CheckDetails> checks;
     private int confirmCount;
 
     public SuspectTransform(String name) {
         super(name);
         this.checks = new HashMap<>();
-        this.checks.put("quote consumption", this::detectQuoteConsumption);
-        this.checks.put("arithmetic evaluation", this::detectArithmetic);
-        this.checks.put("expression evaluation", this::detectExpression);
-        this.checks.put("template evaluation", this::detectRazorExpression);
-        this.checks.put("EL evaluation", this::detectAltExpression);
-        this.checks.put("unicode normalisation", this::detectUnicodeNormalisation);
-
+        this.checks.put("quote consumption", new CheckDetails(this::detectQuoteConsumption, List.of()));
+        this.checks.put("arithmetic evaluation", new CheckDetails(this::detectArithmetic, List.of()));
+        this.checks.put("expression evaluation", new CheckDetails(this::detectExpression,
+                List.of("https://portswigger.net/research/server-side-template-injection")));
+        this.checks.put("template evaluation", new CheckDetails(this::detectRazorExpression,
+                List.of("https://portswigger.net/research/server-side-template-injection")));
+        this.checks.put("EL evaluation", new CheckDetails(this::detectAltExpression,
+                List.of("https://portswigger.net/research/server-side-template-injection")));
+        this.checks.put("unicode normalisation", new CheckDetails(this::detectUnicodeNormalisation,
+                List.of("https://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
+        this.checks.put("url decoding error", new CheckDetails(this::detectUrlDecodeError,
+                List.of("https://blog.orange.tw/posts/2025-01-worstfit-unveiling-hidden-transformers-in-windows-ansi/")));
+        this.checks.put("unicode codepoint truncation", new CheckDetails(this::detectUnicodeCodepointTruncation,
+                List.of("https://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
         this.confirmCount = 2;
     }
-
+    
     private Pair<String, List<String>> detectUnicodeNormalisation(String base) {
         String leftAnchor = Utilities.randomString(6);
         String rightAnchor = Utilities.randomString(6);
-        return new ImmutablePair<>(leftAnchor+"à"+rightAnchor, Collections.singletonList(leftAnchor+"a"+rightAnchor));
+        return new ImmutablePair<>(leftAnchor+"\u212a"+rightAnchor, Collections.singletonList(leftAnchor+"K"+rightAnchor));
+    }
+
+    private Pair<String, List<String>> detectUrlDecodeError(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+        return new ImmutablePair<>(leftAnchor+"\u0391"+rightAnchor, Collections.singletonList(leftAnchor+"N\u0011"+rightAnchor));
+    }
+
+    private Pair<String, List<String>> detectUnicodeCodepointTruncation(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+        return new ImmutablePair<>(leftAnchor+"\uCF7B"+rightAnchor, Collections.singletonList(leftAnchor+"{"+rightAnchor));
     }
 
     private Pair<String, List<String>> detectQuoteConsumption(String base) {
@@ -69,13 +88,14 @@ public class SuspectTransform extends ParamScan {
         String base = insertionPoint.getBaseValue();
         String initialResponse = safeBytesToString(basePair.getResponse());
         List<IScanIssue> issues = new ArrayList<>();
-        Map<String, Check> checksCopy = new HashMap<>(this.checks);
+        Map<String, CheckDetails> checksCopy = new HashMap<>(this.checks);
 
         while (!checksCopy.isEmpty()) {
-            Map.Entry<String, Check> entry = checksCopy.entrySet().iterator().next();
+            Map.Entry<String, CheckDetails> entry = checksCopy.entrySet().iterator().next();
             checksCopy.remove(entry.getKey());
             String name = entry.getKey();
-            Check check = entry.getValue();
+            Check check = entry.getValue().getTransformation();
+            List<String> links = entry.getValue().getLinks();
 
             for (int attempt = 0; attempt < confirmCount; attempt++) {
                 Pair<String, List<String>> result = check.apply(base);
@@ -96,9 +116,10 @@ public class SuspectTransform extends ParamScan {
                                     helpers.analyzeRequest(attack).getUrl(),
                                     new IHttpRequestResponse[]{attack},
                                     "Suspicious input transformation: " + name,
-                                    "The application transforms input in a way that suggests it might be vulnerable to some kind of server-side code injection:<br/><br/> "
+                                    "The application transforms input in a manner that indicates potential vulnerability (e.g., code injection, validation bypass, etc.):<br/><br/> "
                                             + "The following probe was sent: <b>" + probe + "</b><br/>"
-                                            + "The server response contained the evaluated result: <b>" + e + "</b><br/><br/>Manual investigation is advised.",
+                                            + "The server response contained the evaluated result: <b>" + e + "</b><br/><br/>Manual investigation is advised."
+                                            + (links.isEmpty() ? "" : "<br/> More details: " + String.join(", ", links)),
                                     "Tentative", CustomScanIssue.severity.High));
                         }
                         break;
@@ -112,6 +133,25 @@ public class SuspectTransform extends ParamScan {
         }
 
         return issues;
+    }
+
+    private static class CheckDetails {
+        private final Check transformation;
+        private final List<String> links;
+
+        public CheckDetails(Check transformation, List<String> usefulLinks) {
+            this.transformation = transformation;
+            this.links = usefulLinks;
+        }
+
+        public Check getTransformation() {
+            return transformation;
+        }
+
+        public List<String> getLinks() {
+            return links.stream()
+                    .map(link -> String.format("<a href=\"%s\">%s</a>", link, link)).toList();
+        }
     }
 
     @FunctionalInterface
