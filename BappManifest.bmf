@@ -10,4 +10,4 @@ Author: James 'albinowax' Kettle, PortSwigger
 ShortDescription: Extends Burp's active and passive scanning capabilities.
 EntryPoint: build/libs/active-scan-plus-plus-all.jar
 BuildCommand: ./gradlew fatJar
-SupportedProducts: Pro 
+SupportedProducts: Pro, Enterprise 
