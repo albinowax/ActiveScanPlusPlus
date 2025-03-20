@@ -42,6 +42,7 @@ public class BurpExtender implements IBurpExtender, IExtensionStateListener, Bur
         Utilities.callbacks.registerScannerCheck(new SolrScan("Solr Scan"));
         Utilities.callbacks.registerScannerCheck(new Struts201712611Scan("Struts 2017-12611 Scan"));
         Utilities.callbacks.registerScannerCheck(new SuspectTransform("Suspect Transform"));
+        Utilities.callbacks.registerScannerCheck(new XMLScan("XML security"));
 
         new BulkScanLauncher(BulkScan.scans);
 
