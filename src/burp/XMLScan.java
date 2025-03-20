@@ -13,6 +13,7 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
@@ -158,7 +159,10 @@ public class XMLScan extends ParamScan {
         List<Attribute> originalAttributes = Utilities.buildMontoyaResp(new Resp(basePair)).response().attributes(ATTRIBUTES.toArray(new AttributeType[]{}));
 
         List<AttributeType> unique = getUniqueAttributeTypes(baselineAttributes, originalAttributes);
-        if (unique.isEmpty()) unique = List.of(ATTRIBUTES.toArray(new AttributeType[]{}));
+        if (unique.isEmpty()) {
+            // Skip target as unpredictable
+            return null;
+        };
 
         originalAttributes = Utilities.buildMontoyaResp(new Resp(basePair)).response().attributes(unique.toArray(new AttributeType[]{}));
 
@@ -170,9 +174,13 @@ public class XMLScan extends ParamScan {
             List<String> links = entry.getValue().getLinks();
             String probe;
             try {
-                Pair<String, String> result = check.apply(document.get());
+                Document copy = DocumentBuilderFactory.newInstance()
+                        .newDocumentBuilder()
+                        .newDocument();
+                copy.appendChild(copy.importNode(document.get().getDocumentElement(), true));
+                Pair<String, String> result = check.apply(copy);
                 probe = result.getKey();
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException | ParserConfigurationException e) {
                 continue;
             }
             Utilities.log("Trying " + probe);
@@ -293,6 +301,7 @@ public class XMLScan extends ParamScan {
 
     private Optional<Document> parseXML(String xmlString) {
         try {
+            if (!xmlString.startsWith("<")) throw new IllegalArgumentException();
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
