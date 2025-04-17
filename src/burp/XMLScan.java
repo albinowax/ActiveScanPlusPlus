@@ -51,8 +51,6 @@ public class XMLScan extends ParamScan {
                 List.of("https://portswigger.net/research/saml-roulette-the-hacker-always-wins")));
         this.checks.put("ENTITY", new CheckDetails(this::detectUnsafeENTITIES,
                 List.of("https://portswigger.net/research/saml-roulette-the-hacker-always-wins")));
-        this.checks.put("Unsigned XML", new CheckDetails(this::detectUnsignedDocument,
-                List.of("https://portswigger.net/research/saml-roulette-the-hacker-always-wins")));
         this.confirmCount = 2;
         this.isCompressed = false;
         this.isBase64Encoded = false;
@@ -113,17 +111,6 @@ public class XMLScan extends ParamScan {
         } catch (Exception e) {
             throw new IllegalArgumentException();
         }
-    }
-
-    private Pair<String, String> detectUnsignedDocument(Document document) {
-        NodeList signatureNodes = document.getElementsByTagNameNS("*", "Signature");
-        if (signatureNodes.getLength() == 0) throw new IllegalArgumentException();
-        for (int i = signatureNodes.getLength() - 1; i >= 0; i--) {
-            Node node = signatureNodes.item(i);
-            node.getParentNode().removeChild(node);
-        }
-
-        return new ImmutablePair<>(compressIfNeeded(transformDocument(document)), "");
     }
 
     private boolean areAttributesIdentical(List<Attribute> firstAttributes, List<Attribute> secondAttributes) {
@@ -306,6 +293,7 @@ public class XMLScan extends ParamScan {
             factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            factory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
             factory.setNamespaceAware(true);
 
             DocumentBuilder builder = factory.newDocumentBuilder();
