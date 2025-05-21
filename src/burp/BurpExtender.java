@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class BurpExtender implements IBurpExtender, IExtensionStateListener, BurpExtension {
     private static final String name = "ActiveScan++";
-    private static final String version = "2.0.3";
+    private static final String version = "2.0.4";
     public boolean unloaded = false;
     static ConcurrentHashMap<String, Boolean> hostsToSkip = new ConcurrentHashMap<>();
 
@@ -42,6 +42,7 @@ public class BurpExtender implements IBurpExtender, IExtensionStateListener, Bur
         Utilities.callbacks.registerScannerCheck(new SolrScan("Solr Scan"));
         Utilities.callbacks.registerScannerCheck(new Struts201712611Scan("Struts 2017-12611 Scan"));
         Utilities.callbacks.registerScannerCheck(new SuspectTransform("Suspect Transform"));
+        Utilities.callbacks.registerScannerCheck(new XMLScan("XML security"));
 
         new BulkScanLauncher(BulkScan.scans);
 
