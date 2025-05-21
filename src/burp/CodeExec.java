@@ -67,6 +67,67 @@ public class CodeExec extends ParamScan {
         }
         payloads.addAll(_payloads.get("any"));
 
+        int delayTarget = 4000;
+
+        for (String payload : payloads) {
+
+            for (int confirmations = 0; ; confirmations++) {
+
+                Pair<Long, IHttpRequestResponse> attack = _attack(basePair, insertionPoint, payload, delayTarget);
+                Pair<Long, IHttpRequestResponse> dummyAttack = _attack(basePair, insertionPoint, payload, 0);
+
+                long attackTime = attack.getKey();
+                IHttpRequestResponse attackRequest = attack.getValue();
+                long dummyTime = dummyAttack.getKey();
+                IHttpRequestResponse dummyRequest = dummyAttack.getValue();
+
+                if (dummyRequest.getResponse() == null) {
+                    Utilities.log("Received empty response to baseline request - abandoning attack");
+                    break;
+                }
+
+                if (attackTime < (delayTarget-100) || dummyTime + 1000 > attackTime) {
+                    Utilities.out("Variables: " + payload + " | " + attackTime + " | " + dummyTime);
+                    break;
+                }
+
+                if (confirmations == 6) {
+                    Utilities.log("Code execution confirmed");
+                    URL url = helpers.analyzeRequest(attack.getValue()).getUrl();
+                    if (_done.contains(url)) {
+                        Utilities.log("Skipping report - vulnerability already reported");
+                        break;
+                    }
+                    _done.add(url);
+                    return Arrays.asList(new CustomScanIssue(
+                            attackRequest.getHttpService(),
+                            url,
+                            new IHttpRequestResponse[]{attackRequest},
+                            "Code injection",
+                            "The application appears to evaluate user input as code.<p> It was instructed to sleep for 0ms, and a response time of <b>" + dummyTime + "</b>ms was observed. <br/>It was then instructed to sleep for " + attackTime + "ms, which resulted in a response time of <b>" + attackTime + "</b>ms. This was re-confirmed six times to reduce false-positives</p>",
+                            "Firm",
+                            CustomScanIssue.severity.High
+                    ));
+                }
+            }
+
+
+        }
+        return Collections.emptyList();
+    }
+
+    public List<IScanIssue> doActiveScanold(IHttpRequestResponse basePair, IScannerInsertionPoint insertionPoint) {
+        Set<String> payloads = new HashSet<>();
+        List<String> languages = _getLangs(basePair);
+
+        for (String lang : languages) {
+            List<String> newPayloads = _payloads.get(lang);
+            if (newPayloads != null) {
+                payloads.addAll(newPayloads);
+            }
+        }
+        payloads.addAll(_payloads.get("any"));
+
         int delayTarget = 0;
         int margin = 1000;
         for (String payload : payloads) {
