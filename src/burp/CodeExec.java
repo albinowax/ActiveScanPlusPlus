@@ -86,8 +86,11 @@ public class CodeExec extends ParamScan {
                     break;
                 }
 
+//                if (dummyTime > delayTarget) {
+//                    return List.of();
+//                }
+
                 if (attackTime < (delayTarget-100) || dummyTime + 1000 > attackTime) {
-                    Utilities.out("Variables: " + payload + " | " + attackTime + " | " + dummyTime);
                     break;
                 }
 
