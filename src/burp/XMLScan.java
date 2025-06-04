@@ -131,6 +131,9 @@ public class XMLScan extends ParamScan {
     @Override
     public List<IScanIssue> doActiveScan(IHttpRequestResponse basePair, IScannerInsertionPoint insertionPoint) {
         String base = insertionPoint.getBaseValue();
+        String insertionPointName = insertionPoint.getInsertionPointName();
+        if (!(insertionPointName.equalsIgnoreCase("SAMLRequest") || insertionPointName.equalsIgnoreCase("SAMLResponse")))
+            return null;
         Optional<Document> document = extractOptionalXMLDocument(base);
         if (document.isEmpty()) return null;
 
@@ -226,34 +229,55 @@ public class XMLScan extends ParamScan {
             deflater.setInput(input);
             deflater.finish();
             byte[] buffer = new byte[1024];
+            int maxLoops = 10000;
+            int loops = 0;
 
             while (!deflater.finished()) {
                 int count = deflater.deflate(buffer);
-                outputStream.write(buffer, 0, count);
+                if (count == 0) {
+                    if (loops++ >= maxLoops) {
+                        throw new RuntimeException("Deflater made no progress — possible logic error or invalid input.");
+                    }
+                } else {
+                    loops = 0; // reset loop count on progress
+                    outputStream.write(buffer, 0, count);
+                }
             }
 
             return outputStream.toByteArray();
         } catch (IOException e) {
-            return null;
+            throw new IllegalArgumentException("Compression failed", e);
         } finally {
             deflater.end();
         }
     }
 
     public byte[] decompress(byte[] data) throws DataFormatException {
+        Inflater inflater = new Inflater(true);
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream(data.length)) {
-            Inflater inflater = new Inflater(true);
             inflater.setInput(data);
             byte[] buffer = new byte[1024];
-            while (!inflater.finished()) {
+            int maxLoops = 10000;  // prevent infinite loop
+            int loops = 0;
+
+            while (!inflater.finished() && loops < maxLoops) {
                 int count = inflater.inflate(buffer);
+                if (count == 0 && inflater.needsInput()) {
+                    break;
+                }
                 outputStream.write(buffer, 0, count);
+                loops++;
             }
-            byte[] output = outputStream.toByteArray();
-            inflater.end();
-            return output;
+
+            if (loops >= maxLoops) {
+                throw new DataFormatException("Decompression exceeded safe iteration limit.");
+            }
+
+            return outputStream.toByteArray();
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
+        } finally {
+            inflater.end();
         }
     }
 
