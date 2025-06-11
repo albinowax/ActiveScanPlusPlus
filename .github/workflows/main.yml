@@ -17,19 +17,16 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '17'
 
-      - name: Compile Java code
-        run: |
-          mkdir -p out
-          javac -d out $(find src -name "*.java")
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
 
-      - name: Package JAR
-        run: |
-          jar cf ActiveScanPlusPlus.jar -C out .
+      - name: Build with Gradle
+        run: ./gradlew build
 
-      - name: Upload plugin JAR
+      - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ActiveScanPlusPlus
-          path: ActiveScanPlusPlus.jar
+          name: ActiveScanPlusPlus-JAR
+          path: build/libs/*.jar
