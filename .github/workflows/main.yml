@@ -1,28 +1,35 @@
-name: Build and Upload Artifacts
+name: Build Java Plugin
 
 on:
   push:
     branches: [ main ]
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
         with:
-          node-version: '18'
+          distribution: 'temurin'
+          java-version: '11'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Compile Java code
+        run: |
+          mkdir -p out
+          javac -d out $(find src -name "*.java")
 
-      - name: Build
-        run: npm run build
+      - name: Package JAR
+        run: |
+          jar cf ActiveScanPlusPlus.jar -C out .
 
-      - name: Upload build artifacts
+      - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
-          name: build-dist
-          path: dist/
+          name: ActiveScanPlusPlus
+          path: ActiveScanPlusPlus.jar
