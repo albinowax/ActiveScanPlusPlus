@@ -24,11 +24,15 @@ public class SuspectTransform extends ParamScan {
         this.checks.put("EL evaluation", new CheckDetails(this::detectAltExpression,
                 List.of("https://portswigger.net/research/server-side-template-injection")));
         this.checks.put("unicode normalisation", new CheckDetails(this::detectUnicodeNormalisation,
-                List.of("https://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
-        this.checks.put("url decoding error", new CheckDetails(this::detectUrlDecodeError,
                 List.of("https://blog.orange.tw/posts/2025-01-worstfit-unveiling-hidden-transformers-in-windows-ansi/")));
-        this.checks.put("unicode codepoint truncation", new CheckDetails(this::detectUnicodeCodepointTruncation,
+        this.checks.put("url decoding error", new CheckDetails(this::detectUrlDecodeError,
+                List.of("https://cwe.mitre.org/data/definitions/172.html")));
+        this.checks.put("unicode byte truncation", new CheckDetails(this::detectUnicodeByteTruncation,
                 List.of("https://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
+        this.checks.put("unicode case conversion", new CheckDetails(this::detectUnicodeCaseConversion,
+                List.of("https://www.unicode.org/charts/case/index.html")));
+        this.checks.put("unicode combining diacritic", new CheckDetails(this::detectUnicodeCombiningDiacritic,
+                List.of("https://codepoints.net/combining_diacritical_marks?lang=en")));
         this.confirmCount = 2;
     }
     
@@ -44,10 +48,21 @@ public class SuspectTransform extends ParamScan {
         return new ImmutablePair<>(leftAnchor+"\u0391"+rightAnchor, Collections.singletonList(leftAnchor+"N\u0011"+rightAnchor));
     }
 
-    private Pair<String, List<String>> detectUnicodeCodepointTruncation(String base) {
+    private Pair<String, List<String>> detectUnicodeByteTruncation(String base) {
         String leftAnchor = Utilities.randomString(6);
         String rightAnchor = Utilities.randomString(6);
         return new ImmutablePair<>(leftAnchor+"\uCF7B"+rightAnchor, Collections.singletonList(leftAnchor+"{"+rightAnchor));
+    }
+
+    private Pair<String, List<String>> detectCaseConversion(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+        return new ImmutablePair<>(leftAnchor+"\u0131"+rightAnchor, Collections.singletonList(leftAnchor+"I"+rightAnchor));
+    }
+
+    private Pair<String, List<String>> detectCombiningDiacritic(String base) {
+        String rightAnchor = Utilities.randomString(6);
+        return new ImmutablePair<>("\u0338"+rightAnchor, Collections.singletonList("\u226F"+rightAnchor));
     }
 
     private Pair<String, List<String>> detectQuoteConsumption(String base) {
