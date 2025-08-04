@@ -54,13 +54,13 @@ public class SuspectTransform extends ParamScan {
         return new ImmutablePair<>(leftAnchor+"\uCF7B"+rightAnchor, Collections.singletonList(leftAnchor+"{"+rightAnchor));
     }
 
-    private Pair<String, List<String>> detectCaseConversion(String base) {
+    private Pair<String, List<String>> detectUnicodeCaseConversion(String base) {
         String leftAnchor = Utilities.randomString(6);
         String rightAnchor = Utilities.randomString(6);
         return new ImmutablePair<>(leftAnchor+"\u0131"+rightAnchor, Collections.singletonList(leftAnchor+"I"+rightAnchor));
     }
 
-    private Pair<String, List<String>> detectCombiningDiacritic(String base) {
+    private Pair<String, List<String>> detectUnicodeCombiningDiacritic(String base) {
         String rightAnchor = Utilities.randomString(6);
         return new ImmutablePair<>("\u0338"+rightAnchor, Collections.singletonList("\u226F"+rightAnchor));
     }
