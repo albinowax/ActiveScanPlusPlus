@@ -2,7 +2,7 @@ Uuid: 3123d5b5f25c4128894d97ea1acc4976
 ExtensionType: 1
 Name: Active Scan++
 RepoName: active-scan-plus-plus
-ScreenVersion: 2.0.5
+ScreenVersion: 2.0.6
 SerialVersion: 43
 MinPlatformVersion: 19
 ProOnly: True
