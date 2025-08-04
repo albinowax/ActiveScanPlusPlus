@@ -107,7 +107,7 @@ public class CodeExec extends ParamScan {
                             url,
                             new IHttpRequestResponse[]{attackRequest},
                             "Code injection",
-                            "The application appears to evaluate user input as code.<p> It was instructed to sleep for 0ms, and a response time of <b>" + dummyTime + "</b>ms was observed. <br/>It was then instructed to sleep for " + attackTime + "ms, which resulted in a response time of <b>" + attackTime + "</b>ms. This was re-confirmed six times to reduce false-positives</p>",
+                            "The application appears to evaluate user input as code.<p> It was instructed to sleep for 0ms, and a response time of <b>" + dummyTime + "</b>ms was observed. <br/>It was then instructed to sleep for " + delayTarget + "ms, which resulted in a response time of <b>" + attackTime + "</b>ms. This was re-confirmed six times to reduce false-positives</p>",
                             "Firm",
                             CustomScanIssue.severity.High
                     ));
