@@ -4,7 +4,7 @@ Name: Active Scan++
 RepoName: active-scan-plus-plus
 ScreenVersion: 2.0.7
 SerialVersion: 45
-MinPlatformVersion: 2
+MinPlatformVersion: 19
 ProOnly: True
 Author: James Kettle, PortSwigger
 ShortDescription: Extends Burp's active and passive scanning capabilities.
