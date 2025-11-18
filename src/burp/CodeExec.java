@@ -90,7 +90,14 @@ public class CodeExec extends ParamScan {
 //                    return List.of();
 //                }
 
-                if (attackTime < (delayTarget-100) || dummyTime + 1000 > attackTime) {
+                // if the response took less than the target delay time, bail
+                if (attackTime < delayTarget-10) {
+                    break;
+                }
+
+                // if the dummy attack took nearly as long as the real attack, bail
+                // this allows for 1000ms of jitter before FNs occur
+                if (dummyTime + (delayTarget-1000) > attackTime) {
                     break;
                 }
 
