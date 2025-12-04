@@ -2,8 +2,8 @@ Uuid: 3123d5b5f25c4128894d97ea1acc4976
 ExtensionType: 1
 Name: Active Scan++
 RepoName: active-scan-plus-plus
-ScreenVersion: 2.0.7
-SerialVersion: 47
+ScreenVersion: 2.0.8
+SerialVersion: 48
 MinPlatformVersion: 19
 ProOnly: True
 Author: James Kettle, PortSwigger
