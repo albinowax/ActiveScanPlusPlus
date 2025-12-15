@@ -107,6 +107,14 @@ public class PerRequestScans extends ParamScan {
             } catch (Exception e) {
                 // Ignore exceptions
             }
+
+            // Verify by sending a non-matching glob - if this also contains 127.0.0.1, it's a false positive
+            IHttpRequestResponse verify = fetchModifiedRequest(basePair, "Accept", "../../../../../../../../../../../e*c/h*z*z{{");
+            String verifyResponse = OldUtilities.safeBytesToString(verify.getResponse());
+            if (verifyResponse.contains("127.0.0.1")) {
+                return Collections.emptyList();
+            }
+
             return Collections.singletonList(new CustomScanIssue(
                     basePair.getHttpService(), Utilities.helpers.analyzeRequest(basePair).getUrl(),
                     new IHttpRequestResponse[]{attack},
