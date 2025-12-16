@@ -1,26 +1,35 @@
-<p>ActiveScan++ extends Burp Suite's active and passive scanning capabilities.
-Designed to add minimal network overhead, it identifies application behaviour that may be of interest to advanced testers:</p>
+<p>
+    ActiveScan++ extends active and passive scanning capabilities. Designed to add minimal network overhead, it
+    identifies application behavior that may be of interest to advanced testers.
+</p>
 
+<h2>Features</h2>
 <ul>
-    <li>Potential host header attacks (password reset poisoning, cache poisoning, DNS rebinding)</li>
-    <li>Edge side includes</li>
-    <li>XML input handling</li>
-    <li>Suspicious input transformation (eg 7*7 =&gt; '49', \x41\x41 =&gt; 'AA')</li>
-    <li>Passive-scanner issues that only occur during fuzzing (install the 'Error Message Checks' extension for maximum effectiveness)</li>
+    <li>Detects potential host header attacks, including password reset poisoning, cache poisoning, and DNS rebinding
+    </li>
+    <li>Identifies Edge Side Includes and XML input handling vulnerabilities</li>
+    <li>Discovers suspicious input transformations such as expression evaluation (7*7 &rarr; '49') and character
+        escaping (\x41\x41 &rarr; 'AA')</li>
+    <li>Detects blind code injection via expression language, Ruby's <code class="InlineCode">open()</code>, and Perl's
+        <code class="InlineCode">open()</code></li>
+    <li>Checks for specific CVEs including Shellshock (CVE-2014-6271, CVE-2014-6278), Struts vulnerabilities
+        (CVE-2017-5638, CVE-2018-11776), Solr injection (CVE-2017-12629), Log4Shell (CVE-2021-44228), Rails file
+        disclosure (CVE-2019-5418), and React2Shell (CVE-2025-55182, CVE-2025-66478)</li>
+    <li>Identifies unicode processing issues that may bypass character blocklists</li>
+    <li>Triggers passive scanner checks during active scanning to discover issues that only appear during fuzzing</li>
+    <li>Provides insertion points for HTTP basic authentication testing</li>
 </ul>
 
-<p>It also adds checks for the following issues:</p>
+<h2>Usage</h2>
+<ol>
+    <li>Run a standard active scan on your target</li>
+    <li>The extension automatically performs all configured checks during the scan</li>
+    <li>Review discovered issues in the scan results</li>
+</ol>
 
-<ul>
-    <li>Blind code injection via expression language, Ruby's open() and Perl's open()</li>
-    <li>CVE-2014-6271/CVE-2014-6278 'shellshock' and CVE-2015-2080, CVE-2017-5638, CVE-2017-12629, CVE-2018-11776</li>
-</ul>
+<p>
+    <strong>Note:</strong> The host header checks modify the host header, which may route requests to different applications on the same
+    host. Exercise caution when scanning applications in shared hosting environments.
+</p>
 
-<p>It also provides insertion points for HTTP basic authentication.</p>
-
-<p>To invoke these checks, just run a normal active scan.</p>
-
-<p>The host header checks tamper with the host header, which may result in requests being routed to different applications on the same host.
-Exercise caution when running this scanner against applications in a shared hosting environment.</p>
-
-<p>Copyright &copy; 2014-2025 PortSwigger Ltd.</p>
+<p><br>Copyright &copy; 2014-2025 PortSwigger Ltd.</p>
