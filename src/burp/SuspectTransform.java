@@ -123,7 +123,9 @@ public class SuspectTransform extends ParamScan {
 
                 boolean matched = false;
                 for (String e : expect) {
-                    if (attackResponse.contains(e) && !initialResponse.contains(e)) {
+                    boolean attackContains = containsExpectedValue(attackResponse, e);
+                    boolean initialContains = containsExpectedValue(initialResponse, e);
+                    if (attackContains && !initialContains) {
                         matched = true;
                         if (attempt == confirmCount - 1) {
                             issues.add(new CustomScanIssue(
@@ -172,6 +174,46 @@ public class SuspectTransform extends ParamScan {
     @FunctionalInterface
     private interface Check {
         Pair<String, List<String>> apply(String base);
+    }
+
+    private boolean containsExpectedValue(String body, String expected) {
+        if (body == null || expected == null) {
+            return false;
+        }
+
+        if (expected.chars().allMatch(Character::isDigit)) {
+            return containsIsolatedNumber(body, expected);
+        }
+
+        return body.contains(expected);
+    }
+
+    private boolean containsIsolatedNumber(String body, String number) {
+        if (body == null || number == null || number.isEmpty()) {
+            return false;
+        }
+
+        int index = -1;
+        while ((index = body.indexOf(number, index + 1)) != -1) {
+            if (hasValidNumberBoundaries(body, index, number.length())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean hasValidNumberBoundaries(String body, int startIndex, int length) {
+        // Numbers may not be preceded by another digit or a decimal point
+        int prefixIndex = startIndex - 1;
+        boolean validPrefix = prefixIndex < 0
+                || (!Character.isDigit(body.charAt(prefixIndex)) && body.charAt(prefixIndex) != '.');
+
+        // Numbers must not be terminated with another digit
+        int suffixIndex = startIndex + length;
+        boolean validSuffix = suffixIndex >= body.length() || !Character.isDigit(body.charAt(suffixIndex));
+
+        return validPrefix && validSuffix;
     }
 
     // Other utility methods like safeBytesToString, request, debugMsg, etc. should be implemented as needed.
