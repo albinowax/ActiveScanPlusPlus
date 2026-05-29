@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-public class PerHostScans extends ParamScan {
+public class PerHostScans extends Scan {
     private static Set<String> scannedHosts = new HashSet<>();
 
     PerHostScans(String name) {
@@ -20,8 +20,9 @@ public class PerHostScans extends ParamScan {
         return Collections.emptyList();
     }
 
-    @Override
-    public List<IScanIssue> doActiveScan(IHttpRequestResponse basePair, IScannerInsertionPoint insertionPoint) {
+    // Host-level checks; the scannedHosts gate ensures they run at most once per host,
+    // regardless of how many times (or via which path) we're invoked.
+    private List<IScanIssue> scanHost(IHttpRequestResponse basePair) {
         String host = basePair.getHttpService().getHost();
         if (scannedHosts.contains(host)) {
             return Collections.emptyList();
@@ -32,6 +33,18 @@ public class PerHostScans extends ParamScan {
         issues.addAll(interestingFileScan(basePair));
         issues.addAll(rscRceScan(basePair));
         return issues;
+    }
+
+    @Override
+    List<IScanIssue> doScan(IHttpRequestResponse baseRequestResponse) {
+        // bulkscan request path (fires on every request, including paramless ones)
+        return scanHost(baseRequestResponse);
+    }
+
+    @Override
+    public List<IScanIssue> doActiveScan(IHttpRequestResponse basePair, IScannerInsertionPoint insertionPoint) {
+        // native Burp path; the scannedHosts gate dedupes the per-insertion-point calls
+        return scanHost(basePair);
     }
 
     @Override
