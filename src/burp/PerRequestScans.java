@@ -13,7 +13,7 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class PerRequestScans extends ParamScan {
+public class PerRequestScans extends Scan {
     private final List<ScanCheck> scanChecks;
 
     public PerRequestScans(String name) {
@@ -35,11 +35,21 @@ public class PerRequestScans extends ParamScan {
     }
 
     @Override
+    List<IScanIssue> doScan(IHttpRequestResponse baseRequestResponse) {
+        // bulkscan request path (fires once per request, including paramless ones)
+        return runChecks(baseRequestResponse);
+    }
+
+    @Override
     public List<IScanIssue> doActiveScan(IHttpRequestResponse basePair, IScannerInsertionPoint insertionPoint) {
+        // native Burp path: fire once per request, gated on the first param / User-Agent
         if (!shouldTriggerPerRequestAttacks(basePair, insertionPoint)) {
             return Collections.emptyList();
         }
+        return runChecks(basePair);
+    }
 
+    private List<IScanIssue> runChecks(IHttpRequestResponse basePair) {
         List<IScanIssue> issues = new ArrayList<>();
         for (ScanCheck scanCheck : scanChecks) {
             try {
