@@ -33,7 +33,65 @@ public class SuspectTransform extends ParamScan {
                 List.of("https://www.unicode.org/charts/case/index.html")));
         this.checks.put("unicode combining diacritic", new CheckDetails(this::detectUnicodeCombiningDiacritic,
                 List.of("https://codepoints.net/combining_diacritical_marks?lang=en")));
+        this.checks.put("legacy url decoding (single-byte)", new CheckDetails(this::detectLegacyUrlDecode,
+                List.of("https://datatracker.ietf.org/doc/html/rfc1738#section-2.2")));
+        this.checks.put("surrogate character replacement", new CheckDetails(this::detectSurrogateReplacement,
+                List.of("https://lab.ctbb.show/research/unicode-surrogates-to-replacement-characters")));
+        this.checks.put("unicode bitwise overflow", new CheckDetails(this::detectUnicodeBitwiseOverflow,
+                List.of("https://portswigger.net/research/bypassing-character-blocklists-with-unicode-overflows")));
+        this.checks.put("unicode space conversion", new CheckDetails(this::detectUnicodeSpaceConvert,
+                List.of("https://portswigger.net/research/cookie-chaos-how-to-bypass-host-and-secure-cookie-prefixes")));
         this.confirmCount = 2;
+    }
+    
+    private Pair<String, List<String>> detectUnicodeSpaceConvert(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+    
+        // Probe sends the EN QUAD character (\u2000) between the anchors
+        String probe = leftAnchor + "\u2000" + rightAnchor;
+    
+        // We check for two possibilities: 
+        // 1. The character is converted to a standard space (" ")
+        // 2. The character is completely stripped/trimmed out ("")
+        List<String> expected = List.of(
+            leftAnchor + " " + rightAnchor,
+            leftAnchor + rightAnchor
+        );
+    
+        return new ImmutablePair<>(probe, expected);
+    }
+    
+    private Pair<String, List<String>> detectUnicodeBitwiseOverflow(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+    
+        // 0x8336 (茶) masks down to 0x36 ('6') when evaluated with an '& 255' bitwise overflow
+        String probe = leftAnchor + "\u8336" + rightAnchor;
+    
+        // Expect the backend parser to evaluate the bitwise operation and output a literal '6'
+        List<String> expected = Collections.singletonList(leftAnchor + "6" + rightAnchor);
+    
+        return new ImmutablePair<>(probe, expected);
+    }
+    
+    private Pair<String, List<String>> detectSurrogateReplacement(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+        return new ImmutablePair<>(leftAnchor+"\udc2a"+rightAnchor, Collections.singletonList(leftAnchor+"?"+rightAnchor));
+    }
+    
+    private Pair<String, List<String>> detectLegacyUrlDecode(String base) {
+        String leftAnchor = Utilities.randomString(6);
+        String rightAnchor = Utilities.randomString(6);
+    
+        // The probe sends the literal string "%ff" between the anchors
+        String probe = leftAnchor + "%ff" + rightAnchor; 
+    
+        // The expected response checks for the decoded 'ÿ' (\u00FF) character between the anchors
+        List<String> expected = Collections.singletonList(leftAnchor + "\u00FF" + rightAnchor);
+    
+        return new ImmutablePair<>(probe, expected);
     }
     
     private Pair<String, List<String>> detectUnicodeNormalisation(String base) {
