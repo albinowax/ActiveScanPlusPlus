@@ -13,6 +13,10 @@ dependencies {
     // Minimum Burp version compatibility
     //compileOnly 'net.portswigger.burp.extensions:montoya-api:2025.2'
     implementation files('bulkScan-all.jar') // this contains albinowaxUtils
+
+    testImplementation(
+            'org.junit.jupiter:junit-jupiter:5.10.5',
+    )
 }
 
 sourceSets {
@@ -24,6 +28,15 @@ sourceSets {
             srcDir 'resources'
         }
     }
+    test {
+        java {
+            srcDir 'test'
+        }
+    }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 archivesBaseName = ('active-scan-plus-plus-all')
