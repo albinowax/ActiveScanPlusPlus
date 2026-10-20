@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class BurpExtender implements IBurpExtender, IExtensionStateListener, BurpExtension {
     private static final String name = "ActiveScan++";
-    private static final String version = "2.0.9";
+    private static final String version = "2.0.10";
     public boolean unloaded = false;
     static ConcurrentHashMap<String, Boolean> hostsToSkip = new ConcurrentHashMap<>();
 
@@ -21,6 +21,7 @@ public class BurpExtender implements IBurpExtender, IExtensionStateListener, Bur
         Utilities.montoyaApi = api;
         if (!Utilities.montoyaApi.burpSuite().version().edition().equals(BurpSuiteEdition.ENTERPRISE_EDITION)) {
             BulkUtilities.registerContextMenu();
+            ExtensionSettingsPanel.register(api);
         }
         // api.http().registerHttpHandler(new Tester());
         // api.userInterface().registerContextMenuItemsProvider(new OfferHostnameOverride());
@@ -43,6 +44,7 @@ public class BurpExtender implements IBurpExtender, IExtensionStateListener, Bur
         Utilities.callbacks.registerScannerCheck(new Struts201712611Scan("Struts 2017-12611 Scan"));
         Utilities.callbacks.registerScannerCheck(new SuspectTransform("Suspect Transform"));
         Utilities.callbacks.registerScannerCheck(new XMLScan("XML security"));
+        Utilities.callbacks.registerScannerCheck(new GoogleApiKeyScan("Google API Key Scan"));
         new KitchenSink("Launch all scans");
 
         new BulkScanLauncher(BulkScan.scans);
