@@ -19,7 +19,7 @@ public class Php2Shell extends ParamScan {
 
     private static final Map<String, Integer> FIXED_PATCH_BY_BRANCH = Map.of("8.2", 35, "8.3", 36, "8.4", 27, "8.5", 12);
 
-    private static final Set<String> reportedHosts = ConcurrentHashMap.newKeySet();
+    private static final Set<String> reportedServices = ConcurrentHashMap.newKeySet();
 
     Php2Shell(String name) {
         super(name);
@@ -36,7 +36,7 @@ public class Php2Shell extends ParamScan {
             for (String header : headers) {
                 Matcher version = PHP_VERSION_TOKEN.matcher(header);
                 if (header.regionMatches(true, 0, headerName, 0, headerName.length()) && version.find()) {
-                    return isAffected(version) && reportedHosts.add(basePair.getHttpService().getHost())
+                    return isAffected(version) && reportedServices.add(serviceKey(basePair.getHttpService()))
                             ? List.of(createIssue(basePair, header, version.group()))
                             : Collections.emptyList();
                 }
@@ -48,6 +48,10 @@ public class Php2Shell extends ParamScan {
     @Override
     public List<IScanIssue> doActiveScan(IHttpRequestResponse basePair, IScannerInsertionPoint insertionPoint) {
         return Collections.emptyList();
+    }
+
+    private static String serviceKey(IHttpService service) {
+        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
     }
 
     private static boolean isAffected(Matcher version) {
