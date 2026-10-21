@@ -79,7 +79,7 @@ public class Php2Shell extends Scan {
     }
 
     private IHttpRequestResponse sendSessionErrorProbe(IHttpRequestResponse basePair) {
-        String boundary = "----ActiveScanPlusPlus" + Utilities.randomString(16);
+        String boundary = Utilities.randomString(24);
         String body = "--" + boundary + "\r\n" +
                 "Content-Disposition: form-data; name=\"" + UPLOAD_PROGRESS_FIELD + "\"\r\n\r\n" +
                 Utilities.randomString(16) + "\r\n" +
