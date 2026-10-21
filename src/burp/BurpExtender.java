@@ -45,6 +45,7 @@ public class BurpExtender implements IBurpExtender, IExtensionStateListener, Bur
         Utilities.callbacks.registerScannerCheck(new SuspectTransform("Suspect Transform"));
         Utilities.callbacks.registerScannerCheck(new XMLScan("XML security"));
         Utilities.callbacks.registerScannerCheck(new GoogleApiKeyScan("Google API Key Scan"));
+        Utilities.callbacks.registerScannerCheck(new Php2Shell("PHP2Shell"));
         new KitchenSink("Launch all scans");
 
         new BulkScanLauncher(BulkScan.scans);
